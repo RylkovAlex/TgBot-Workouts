@@ -1,115 +1,112 @@
 const {
   Scenes: { BaseScene },
 } = require('telegraf');
-const { Markup } = require('telegraf');
 
-const User = require('../../models/user');
 const Workout = require('../../models/workout');
 
-const scenes = require('./scenes');
+const startWorkout = require('./startWorkout');
+const createWorkout = require('./createWorkout');
 const keyboards = require('../keyboards/keyboards');
 const buttons = require('../keyboards/buttons');
+const actions = require('../enums/actions');
+const answerTypes = require('../enums/answerTypes');
 
-const actions = {
-  enter: 'enter',
-  start: 'start',
-  back: 'back',
-  workoutClick: 'workoutClick',
-  createWorkoutClick: 'createWorkoutClick',
-};
+const chouseWorkout = new BaseScene(`chouseWorkout`);
 
-const handle = (action, ctx) => {
+// Scene action handler:
+chouseWorkout.handle = (action, ctx) => {
   switch (action) {
-    case actions.enter:
+    case actions.ENTER:
       return enterHandler(ctx);
-    case actions.start:
+    case actions.START:
       return startHandler(ctx);
-    case actions.back:
+    case actions.BACK:
       return backHandler(ctx);
-    case actions.workoutClick:
+    case actions.WORKOUT:
       return workoutClickHandler(ctx);
-    case actions.createWorkoutClick:
+    case actions.CREATEWORKOUT:
       return createWorkoutClickHandler(ctx);
 
     default:
-      break;
+      throw new Error(
+        `Wrong action: ${action} is not supported by ${chouseWorkout.id} Scene`
+      );
   }
 };
+
+// Action Handlers
 
 async function enterHandler(ctx) {
   const { action, silent } = ctx.scene.state;
 
   if (action) {
-    return handle(action, ctx);
+    return chouseWorkout.handle(action, ctx);
   }
 
-  const markup = await keyboards.makeWorkoutKeyboard(ctx);
+  const keyboardMarkup = await keyboards.makeWorkoutKeyboard(
+    ctx,
+    chouseWorkout.id
+  );
 
-  // if no workouts => only one button: create
-  if (markup.reply_markup.length === 1) {
+  // TODO: if no workouts => only one button: create
+  if (keyboardMarkup.reply_markup.length === 1) {
     if (silent) {
-      await ctx.editMessageText(`У вас нет доступных тренировок. Создайте их:`);
-      return ctx.editMessageReplyMarkup(markup.reply_markup);
+      return ctx.editMessageText(
+        `У вас нет доступных тренировок. Создайте их:`,
+        {
+          reply_markup: keyboardMarkup.reply_markup,
+        }
+      );
     }
 
-    return ctx.reply(`У вас нет доступных тренировок. Создайте их:`, markup);
+    return ctx.reply(
+      `У вас нет доступных тренировок. Создайте их:`,
+      keyboardMarkup
+    );
   }
 
   if (silent) {
-    await ctx.editMessageText(`Доступные тренировки:`);
-    return ctx.editMessageReplyMarkup(markup.reply_markup);
+    return ctx.editMessageText(`Доступные тренировки:`, {
+      reply_markup: keyboardMarkup.reply_markup,
+    });
   }
 
-  return ctx.reply(`Доступные тренировки:`, markup);
+  return ctx.reply(`Доступные тренировки:`, keyboardMarkup);
 }
 
 async function startHandler(ctx) {
   const { payload: workoutId } = ctx.getCbData();
   const workout = await Workout.findById(workoutId);
+
+  if (!workout) {
+    ctx.answerCbQuery();
+    await ctx.reply(`Данная тренировка больше не доступна!`);
+    return ctx.scene.enter(chouseWorkout.id, { silent: true });
+  }
   ctx.session.handlers = getStartWorkoutHandlers(workout);
 
-  // await ctx.scene.leave();
   await ctx.deleteMessage();
-
-  return ctx.scene.enter(scenes.startWorkout);
+  return ctx.scene.enter(startWorkout.id);
 }
 
 async function backHandler(ctx) {
   ctx.answerCbQuery();
-  return ctx.scene.enter(scenes.chouseWorkout, { silent: true });
+  return ctx.scene.enter(chouseWorkout.id, { silent: true });
 }
 
 async function createWorkoutClickHandler(ctx) {
   ctx.answerCbQuery();
-  return ctx.scene.enter(scenes.createWorkout);
+  return ctx.scene.enter(createWorkout.id);
 }
 
 async function workoutClickHandler(ctx) {
-  const { payload } = ctx.getCbData();
   ctx.answerCbQuery();
-  await ctx.editMessageText(`Начать тренировку?`);
-  return ctx.editMessageReplyMarkup({
-    inline_keyboard: [
-      [
-        Markup.button.callback(
-          'Старт',
-          ctx.makeCbData({
-            scene: scenes.chouseWorkout,
-            action: actions.start,
-            payload,
-          })
-        ),
-      ],
-      [
-        Markup.button.callback(
-          'Назад',
-          ctx.makeCbData({
-            scene: scenes.chouseWorkout,
-            action: actions.back,
-          })
-        ),
-      ],
-    ],
+  const keyboardMarkup = keyboards.makeStartTrainingAlert(
+    ctx,
+    chouseWorkout.id
+  );
+  return ctx.editMessageText(`Начать тренировку?`, {
+    reply_markup: keyboardMarkup.reply_markup,
   });
 }
 
@@ -128,7 +125,10 @@ function getQuestionHandlers(q) {
   const { question, paramName, answerType, possibleAnswers } = q;
 
   const questionHandler = async (ctx) => {
-    if (answerType === 'string' || answerType === 'number') {
+    if (
+      answerType === answerTypes.STRING ||
+      answerType === answerTypes.NUMBER
+    ) {
       await ctx.reply(question, keyboards.training_keyboard);
     } else {
       const keyboard = keyboards.makeAnswersKeyboard(possibleAnswers, {
@@ -139,7 +139,7 @@ function getQuestionHandlers(q) {
       ctx.reply(question, keyboard);
     }
 
-    if (answerType === 'multiple') {
+    if (answerType === answerTypes.MULTIPLE) {
       ctx.scene.state.result[paramName] = [];
     }
 
@@ -154,13 +154,13 @@ function getQuestionHandlers(q) {
     }
 
     switch (answerType) {
-      case 'string': {
+      case answerTypes.STRING: {
         ctx.scene.state.result[paramName] = answer;
         ctx.wizard.next();
         break;
       }
 
-      case 'number': {
+      case answerTypes.NUMBER: {
         const number = Number(answer.replace(/,/g, '.'));
         if (isNaN(number)) {
           return ctx.reply(
@@ -174,11 +174,7 @@ function getQuestionHandlers(q) {
         }
       }
 
-      case 'multiple': {
-        /*         if (!ctx.scene.state.result[paramName]) {
-          ctx.scene.state.result[paramName] = [];
-        } */
-
+      case answerTypes.MULTIPLE: {
         const givenAnswers = ctx.scene.state.result[paramName];
 
         if (possibleAnswers.includes(answer)) {
@@ -207,7 +203,7 @@ function getQuestionHandlers(q) {
         );
       }
 
-      case 'radio': {
+      case answerTypes.RADIO: {
         if (possibleAnswers.includes(answer)) {
           ctx.scene.state.result[paramName] = answer;
           ctx.wizard.next();
@@ -224,7 +220,7 @@ function getQuestionHandlers(q) {
       }
 
       default:
-        throw new Error('Wrong answer type!');
+        throw new Error(`Wrong answer type: ${answerType}`);
     }
     return ctx.wizard.steps[ctx.wizard.cursor](ctx);
   };
@@ -286,26 +282,6 @@ function getTimeHandlers(time) {
   return [firstHandler, secondHandler];
 }
 
-const chouseWorkout = new BaseScene(scenes.chouseWorkout);
-
-chouseWorkout.enter((ctx) => handle(actions.enter, ctx));
-
-chouseWorkout.on(`callback_query`, (ctx) => {
-  const data = ctx.getCbData();
-
-  if (
-    ctx.session.__scenes.current &&
-    ctx.session.__scenes.current === data.scene
-  ) {
-    ctx.answerCbQuery();
-    return handle(actions[data.action], ctx);
-  }
-
-  if (data.scene) {
-    ctx.scene.leave();
-    ctx.answerCbQuery();
-    return ctx.scene.enter(data.scene, data);
-  }
-});
+chouseWorkout.enter((ctx) => chouseWorkout.handle(actions.ENTER, ctx));
 
 module.exports = chouseWorkout;

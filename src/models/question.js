@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const answerTypes = require('../bot/enums/answerTypes');
 
 const questionSchema = new mongoose.Schema(
   {
@@ -11,11 +12,11 @@ const questionSchema = new mongoose.Schema(
     },
     answerType: {
       type: String,
-      enum: ['string', 'number', 'radio', 'multiple'],
+      enum: [answerTypes.STRING, answerTypes.NUMBER, answerTypes.RADIO, answerTypes.MULTIPLE],
     },
     possibleAnswers: {
       required: () =>
-        this.answerType === 'radio' || this.answerType === 'multiple',
+        this.answerType === answerTypes.RADIO || this.answerType === answerTypes.MULTIPLE,
       type: [String],
     },
   },

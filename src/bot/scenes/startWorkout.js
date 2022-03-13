@@ -3,7 +3,6 @@ const {
   Telegraf,
 } = require('telegraf');
 const { Markup } = require('telegraf');
-const scenes = require('./scenes');
 const keyboards = require('../keyboards/keyboards');
 const buttons = require('../keyboards/buttons');
 const combineArrElems = require('../../utils/combineArrElems');
@@ -28,7 +27,7 @@ const enter = (ctx) => {
   return ctx.wizard.steps[ctx.wizard.cursor](ctx);
 };
 
-const startWorkout = new WizardScene(scenes.startWorkout, enter);
+const startWorkout = new WizardScene(`startWorkout`, enter);
 
 startWorkout.leave((ctx) => {
   if (ctx.message.text === buttons.cancel) {

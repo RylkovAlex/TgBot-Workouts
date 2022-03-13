@@ -12,16 +12,35 @@ const setState = require('./middlewares/setState');
 const checkChat = require('./middlewares/checkChat');
 
 const handleStart = require('./commands/start');
-const createUserSheet = require('./scenes/createUserSheet');
-const chouseWorkout = require('./scenes/chouseWorkout');
-const startWorkout = require('./scenes/startWorkout');
-const createWorkout = require('./scenes/createWorkout');
+const scenes = require('./scenes/scenes');
 
-const stage = new Stage([createUserSheet, chouseWorkout, startWorkout, createWorkout], { sessionName: 'chatSession' });
-stage.register(startWorkout);
+const stage = new Stage(Object.values(scenes), {
+  sessionName: 'chatSession',
+});
+// stage.register(startWorkout);
 stage.hears(buttons.cancel, (ctx) => {
   console.log(`STAGE`, ctx.session.__scenes);
   ctx.scene.leave();
+});
+stage.on('callback_query', (ctx) => {
+  const data = ctx.getCbData();
+  const { scene: sceneId, action } = data;
+
+  if (
+    ctx.session?.__scenes?.current &&
+    ctx.session?.__scenes?.current === sceneId
+  ) {
+    ctx.answerCbQuery();
+    const scene = scenes[sceneId];
+
+    return scene.handle(action, ctx);
+  }
+
+  if (sceneId) {
+    ctx.scene.leave();
+    ctx.answerCbQuery();
+    return ctx.scene.enter(sceneId, data);
+  }
 });
 
 class CustomContext extends Context {
@@ -68,11 +87,7 @@ class CustomContext extends Context {
 
 const bot = new Telegraf(process.env.BOT_TOKEN, { contextType: CustomContext });
 
-// const bot = new Telegraf(process.env.BOT_TOKEN);
-bot.use(session({
-  property: 'chatSession',
-  getSessionKey: (ctx) => ctx.chat && ctx.chat.id,
-  }), stage.middleware(), checkChat);
+bot.use(session(), stage.middleware(), checkChat);
 
 /* bot.use(checkChat);
 bot.use(setState); */

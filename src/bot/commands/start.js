@@ -9,10 +9,10 @@ module.exports = async (ctx) => {
   );
 
   if (!user.email) {
-    return ctx.scene.enter(scenes.createUserSheet);
+    return ctx.scene.enter(scenes.createUserSheet.id);
   }
 
   ctx.reply(`Если что-то не понятно, используй команду: /help`);
 
-  return ctx.scene.enter(scenes.chouseWorkout);
+  return ctx.scene.enter(scenes.chouseWorkout.id);
 };

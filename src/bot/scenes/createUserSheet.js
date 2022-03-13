@@ -1,12 +1,12 @@
 const {
   Scenes: { BaseScene },
 } = require('telegraf');
-const scenes = require('./scenes');
+const chouseWorkout = require('./chouseWorkout');
 const keyboards = require('../keyboards/keyboards');
 const buttons = require('../keyboards/buttons');
 const User = require('../../models/user');
 
-const createUserSheet = new BaseScene(scenes.createUserSheet);
+const createUserSheet = new BaseScene(`createUserSheet`);
 
 createUserSheet.enter((ctx) => {
   ctx.reply(
@@ -56,7 +56,7 @@ createUserSheet.leave((ctx) => {
     keyboards.remove_keyboard
   );
 
-  return ctx.scene.enter(scenes.chouseWorkout);
+  return ctx.scene.enter(chouseWorkout.id);
 });
 
 module.exports = createUserSheet;
