@@ -5,9 +5,20 @@ const User = require('../../models/user');
 const combineArrElems = require('../../utils/combineArrElems');
 const actions = require('../enums/actions');
 
+const keyboardMarkup = {
+  remove() {
+    return Markup.removeKeyboard();
+  },
+
+  make(markup) {
+    return Markup.keyboard(markup).oneTime().resize();
+  },
+};
+
 const keyboards = {
   remove_keyboard: Markup.removeKeyboard(),
   exit_keyboard: Markup.keyboard([buttons.cancel]).oneTime().resize(),
+
   training_keyboard: Markup.keyboard([
     [buttons.back, buttons.next],
     [buttons.cancel],
@@ -20,6 +31,14 @@ const keyboards = {
     [buttons.answerTypeRadio],
     [buttons.answerTypeMultiple],
     [buttons.back],
+    [buttons.cancel],
+  ])
+    .oneTime()
+    .resize(),
+
+  workoutActions: Markup.keyboard([
+    [buttons.editWorkout],
+    [buttons.deleteWorkout],
     [buttons.cancel],
   ])
     .oneTime()
@@ -59,7 +78,7 @@ const keyboards = {
       ],
       [
         Markup.button.callback(
-          'Назад',
+          buttons.back,
           ctx.makeCbData({
             scene: sceneId,
             action: actions.BACK,
@@ -69,7 +88,7 @@ const keyboards = {
     ]);
   },
 
-  async makeWorkoutKeyboard(ctx, sceneId) {
+  async makeWorkoutsKeyboard(ctx, { sceneId, action, addBtns }) {
     const user = await User.findOne({ tgId: ctx.from.id });
     await user.populate('workouts').execPopulate();
     ctx.session.user = user;
@@ -82,7 +101,7 @@ const keyboards = {
             buttons.createWorkout,
             ctx.makeCbData({
               scene: sceneId,
-              action: actions.CREATEWORKOUT,
+              action,
             })
           ),
         ],
@@ -94,33 +113,50 @@ const keyboards = {
         `${workout.name}`,
         ctx.makeCbData({
           scene: sceneId,
-          action: actions.WORKOUT,
+          action,
           payload: workout._id,
         })
       );
     };
     const btns = combineArrElems(workouts, 2, mapper);
 
-    btns.push(
-      [
+    const { edit, create, back } = addBtns;
+
+    if (create) {
+      btns.push([
         Markup.button.callback(
           buttons.createWorkout,
           ctx.makeCbData({
             scene: sceneId,
-            action: actions.CREATEWORKOUT,
+            action: actions.CREATE_WORKOUT,
           })
         ),
-      ],
-      [
+      ]);
+    }
+
+    if (edit) {
+      btns.push([
         Markup.button.callback(
           buttons.editWorkouts,
           ctx.makeCbData({
             scene: sceneId,
-            action: actions.EDITWORKOUT,
+            action: actions.EDIT_WORKOUT,
           })
         ),
-      ]
-    );
+      ]);
+    }
+
+    if (back) {
+      btns.push([
+        Markup.button.callback(
+          buttons.back,
+          ctx.makeCbData({
+            scene: sceneId,
+            action: actions.BACK,
+          })
+        ),
+      ]);
+    }
 
     return Markup.inlineKeyboard(btns);
   },

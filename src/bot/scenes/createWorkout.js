@@ -1,16 +1,11 @@
 const {
-  Scenes: { WizardScene, BaseScene },
-  Telegraf,
+  Scenes: { WizardScene },
 } = require('telegraf');
-const { Markup } = require('telegraf');
 const keyboards = require('../keyboards/keyboards');
 const buttons = require('../keyboards/buttons');
-const combineArrElems = require('../../utils/combineArrElems');
-const Workout = require('../../models/workout');
 const User = require('../../models/user');
-const inlineKeyboards = require('../keyboards/inlineKeyboards');
 const answerTypes = require('../enums/answerTypes');
-const workout = require('../../models/workout');
+const Workout = require('../../models/workout');
 const { Question } = require('../../models/question');
 
 const MAX_NAME_LENGTH = 64;
@@ -161,7 +156,7 @@ const paramNameHandler = async (ctx) => {
 
   if (paramName.length > MAX_PARAMNAME_LENGTH) {
     return await ctx.reply(
-      `Максимальная длина имени параметра: ${MAX_QUESTION_LENGTH} символов. Попробуйте сократить имя и введит его ещё раз:`,
+      `Максимальная длина имени параметра: ${MAX_PARAMNAME_LENGTH} символов. Попробуйте сократить имя и введит его ещё раз:`,
       keyboards.exit_keyboard
     );
   }
@@ -265,6 +260,17 @@ const possibleAnswersHandler = async (ctx) => {
     );
   }
 
+  if (answers.some((answer) => answer.length > MAX_ANSWER_LENGTH)) {
+    ctx.scene.state.isBackAllowed = true;
+    return await ctx.reply(
+      `Варианты ответы должны быть длиной не более ${MAX_ANSWER_LENGTH} символов. Попробуйте сократить их и перечислите новые возможные варианты ответа через запятую:`,
+      keyboards.makeAnswersKeyboard(null, {
+        back: true,
+        cancel: true,
+      })
+    );
+  }
+
   const { isBeforeDone } = ctx.scene.state;
   const questionCollection = isBeforeDone
     ? ctx.scene.state.after
@@ -361,7 +367,7 @@ createWorkout.leave(async (ctx) => {
     user = await User.findOne({ tgId: ctx.from.id });
   }
 
-  await new workout({
+  await new Workout({
     name: workoutName,
     params: {
       time,

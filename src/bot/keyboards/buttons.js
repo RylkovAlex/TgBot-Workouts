@@ -6,9 +6,13 @@ module.exports = {
   no: `Нет`,
   editWorkouts: `Редактировать тренировки`,
   createWorkout: `Создать тренировку`,
+  deleteWorkout: `Удалить тренировку`,
+  editWorkout: `Редактировать тренировку`,
   answerTypeString: `Текст`,
   answerTypeNumber: `Число`,
   answerTypeRadio: `Выбор одного варианта`,
   answerTypeMultiple: `Выбор нескольких вариантов`,
   addQuestion: `Добавить вопрос`,
+  deleteQuestion: `Удалить вопрос`,
+  editQuestion: `Редактировать вопрос`,
 };

@@ -8,7 +8,6 @@ const {
 
 const buttons = require('./keyboards/buttons');
 
-const setState = require('./middlewares/setState');
 const checkChat = require('./middlewares/checkChat');
 
 const handleStart = require('./commands/start');
@@ -18,9 +17,11 @@ const stage = new Stage(Object.values(scenes), {
   sessionName: 'chatSession',
 });
 // stage.register(startWorkout);
-stage.hears(buttons.cancel, (ctx) => {
-  console.log(`STAGE`, ctx.session.__scenes);
-  ctx.scene.leave();
+stage.hears(buttons.cancel, (ctx, next) => {
+  if (ctx.scene) {
+    return ctx.scene.leave();
+  }
+  return next();
 });
 stage.on('callback_query', (ctx) => {
   const data = ctx.getCbData();
@@ -53,7 +54,7 @@ class CustomContext extends Context {
     if (data.replace(/[^\x00-\xff]/gi, '--').length <= 64) {
       return data;
     }
-    throw new Error(`CbData length more than 64 bit!`);
+    throw new Error(`CallBack Data is more than 64 bit!`);
   }
 
   getCbData() {
@@ -68,33 +69,15 @@ class CustomContext extends Context {
       payload: data[2],
     };
   }
-
-  /*   getCbData() {
-    if (!this.callbackQuery) {
-      return;
-    }
-
-    let data;
-    try {
-      data = JSON.parse(this.callbackQuery.data);
-    } catch (e) {
-      data = this.callbackQuery.data;
-    }
-
-    return data;
-  } */
 }
 
 const bot = new Telegraf(process.env.BOT_TOKEN, { contextType: CustomContext });
 
 bot.use(session(), stage.middleware(), checkChat);
 
-/* bot.use(checkChat);
-bot.use(setState); */
-
 bot.start(handleStart);
 
-bot.on(`message`, (ctx) => ctx.reply('Ok!'));
+//Menues with inlineKeyboard
 bot.on(`callback_query`, (ctx) => {
   const data = ctx.getCbData();
 
@@ -104,38 +87,6 @@ bot.on(`callback_query`, (ctx) => {
     return ctx.scene.enter(data.scene, data);
   }
 });
-
-/* bot.on(`callback_query`, (ctx) => {
-  let data;
-  try {
-    data = JSON.parse(ctx.callbackQuery.data);
-  } catch (e) {
-    data = ctx.callbackQuery.data;
-  }
-
-  if (data.scene) {
-    ctx.scene.leave();
-    ctx.scene.enter(data.scene, data.sceneState);
-  }
-  return ctx.answerCbQuery();
-}); */
-
-/* bot.on('callback_query', (ctx) => {
-  let data;
-  try {
-    data = JSON.parse(ctx.callbackQuery.data);
-  } catch (e) {
-    data = ctx.callbackQuery.data;
-  }
-
-  if (data.scene) {
-    ctx.scene.enter(data.scene);
-    return ctx.answerCbQuery();
-  }
-
-  console.log(data);
-  ctx.answerCbQuery();
-}); */
 
 bot.catch((err, ctx) => {
   console.log(`An error for ${ctx.updateType}`, { err }, { ctx });

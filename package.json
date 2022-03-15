@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "env-cmd -f ./config/dev.env nodemon src/index.js",
+    "debug": "env-cmd -f ./config/dev.env node --inspect-brk src/index.js",
     "lint": "eslint --fix --ext .js src/"
   },
   "author": "RylkovAlex <rylkovalex@gmail.com>",
