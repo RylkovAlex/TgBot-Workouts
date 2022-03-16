@@ -1,4 +1,4 @@
-module.exports = (ctx, next) => {
+module.exports = async (ctx, next) => {
   const chat = ctx.chat;
 
   if (chat.type !== 'private') {

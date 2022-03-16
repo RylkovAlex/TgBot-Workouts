@@ -12,7 +12,7 @@ module.exports = async (ctx) => {
     return ctx.scene.enter(scenes.createUserSheet.id);
   }
 
-  ctx.reply(`Если что-то не понятно, используй команду: /help`);
+  await ctx.reply(`Если что-то не понятно, используй команду: /help`);
 
   return ctx.scene.enter(scenes.chouseWorkout.id);
 };

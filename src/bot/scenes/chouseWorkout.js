@@ -7,10 +7,9 @@ const Workout = require('../../models/workout');
 const startWorkout = require('./startWorkout');
 const createWorkout = require('./createWorkout');
 const editWorkout = require('./editWorkout');
-const keyboards = require('../keyboards/keyboards');
-const buttons = require('../keyboards/buttons');
+const keyboardMarkup = require('../keyboards/keyboards');
 const actions = require('../enums/actions');
-const answerTypes = require('../enums/answerTypes');
+const buttons = require('../keyboards/buttons');
 
 const chouseWorkout = new BaseScene(`chouseWorkout`);
 
@@ -49,36 +48,37 @@ async function enterHandler(ctx) {
     return chouseWorkout.handle(action, ctx);
   }
 
-  const keyboardMarkup = await keyboards.makeWorkoutsKeyboard(ctx, {
-    sceneId: chouseWorkout.id,
-    action: actions.WORKOUT_CLICK_TO_START,
-    addBtns: { edit: true, create: true },
-  });
+  const reply_markup = await keyboardMarkup
+    .inline_workouts(ctx, {
+      sceneId: chouseWorkout.id,
+      action: actions.WORKOUT_CLICK_TO_START,
+      addBtns: { edit: true, create: true },
+    })
+    .then((markup) => markup?.reply_markup);
 
-  // TODO: if no workouts => markup has only one button: create
-  if (keyboardMarkup.reply_markup.length === 1) {
-    if (silent) {
-      return ctx.editMessageText(
-        `У вас нет доступных тренировок. Создайте их:`,
-        {
-          reply_markup: keyboardMarkup.reply_markup,
-        }
-      );
-    }
+  if (!reply_markup) {
+    const reply_markup = keyboardMarkup.makeInline(
+      [[{ name: buttons.createWorkout, action: actions.CREATE_WORKOUT }]],
+      {
+        ctx,
+        sceneId: chouseWorkout.id,
+      }
+    ).reply_markup;
 
-    return ctx.reply(
-      `У вас нет доступных тренировок. Создайте их:`,
-      keyboardMarkup
-    );
+    return silent
+      ? ctx.editMessageText(`У вас нет доступных тренировок. Создайте их:`, {
+          reply_markup,
+        })
+      : ctx.reply(`У вас нет доступных тренировок. Создайте их:`, {
+          reply_markup,
+        });
   }
 
-  if (silent) {
-    return ctx.editMessageText(`Доступные тренировки:`, {
-      reply_markup: keyboardMarkup.reply_markup,
-    });
-  }
-
-  return ctx.reply(`Доступные тренировки:`, keyboardMarkup);
+  return silent
+    ? ctx.editMessageText(`Доступные тренировки:`, {
+        reply_markup,
+      })
+    : ctx.reply(`Доступные тренировки:`, { reply_markup });
 }
 
 async function backHandler(ctx) {
@@ -87,25 +87,24 @@ async function backHandler(ctx) {
 }
 
 async function editWorkoutClickHandler(ctx) {
-  const keyboardMarkup = await keyboards.makeWorkoutsKeyboard(ctx, {
-    sceneId: chouseWorkout.id,
-    action: actions.WORKOUT_CLICK_TO_EDIT,
-    addBtns: { back: true },
-  });
+  const reply_markup = await keyboardMarkup
+    .inline_workouts(ctx, {
+      sceneId: chouseWorkout.id,
+      action: actions.WORKOUT_CLICK_TO_EDIT,
+      addBtns: { back: true },
+    })
+    .then((markup) => markup.reply_markup);
   ctx.answerCbQuery();
 
   // TODO: if no workouts => only one button: create
-  if (keyboardMarkup.reply_markup.length === 1) {
-    return await ctx.editMessageText(
-      `У вас нет доступных тренировок. Создайте их:`,
-      {
-        reply_markup: keyboardMarkup.reply_markup,
-      }
-    );
+  if (reply_markup.length === 1) {
+    return ctx.editMessageText(`У вас нет доступных тренировок. Создайте их:`, {
+      reply_markup,
+    });
   }
 
-  return await ctx.editMessageText(`Выберите тренировку для редактирования:`, {
-    reply_markup: keyboardMarkup.reply_markup,
+  return ctx.editMessageText(`Выберите тренировку для редактирования:`, {
+    reply_markup,
   });
 }
 
@@ -115,12 +114,12 @@ async function createWorkoutClickHandler(ctx) {
 }
 
 async function workoutClickToStartHandler(ctx) {
-  const keyboardMarkup = keyboards.makeStartTrainingAlert(
+  const reply_markup = keyboardMarkup.inline_beforeStartWorkout(
     ctx,
     chouseWorkout.id
-  );
+  ).reply_markup;
   return ctx.editMessageText(`Начать тренировку?`, {
-    reply_markup: keyboardMarkup.reply_markup,
+    reply_markup,
   });
 }
 

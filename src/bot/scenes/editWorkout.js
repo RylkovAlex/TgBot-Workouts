@@ -1,23 +1,33 @@
 const {
   Scenes: { WizardScene },
 } = require('telegraf');
-const keyboards = require('../keyboards/keyboards');
+const keyboardMarkup = require('../keyboards/keyboards');
 const buttons = require('../keyboards/buttons');
 const Workout = require('../../models/workout');
 const User = require('../../models/user');
 const answerTypes = require('../enums/answerTypes');
 const { Question } = require('../../models/question');
 
-const MAX_NAME_LENGTH = 32;
-const MAX_QUESTION_LENGTH = 256;
-const MAX_PARAMNAME_LENGTH = 64;
-const MAX_ANSWER_LENGTH = 32;
+const {
+  MAX_NAME_LENGTH,
+  MAX_QUESTION_LENGTH,
+  MAX_PARAMNAME_LENGTH,
+  MAX_ANSWER_LENGTH,
+} = require('../config/constants');
+
 
 const enter = async (ctx) => {
   ctx.wizard.steps.splice(1, ctx.wizard.steps.length);
   ctx.wizard.cursor = 0;
 
-  await ctx.reply(`Выберите необходимое действие:`, keyboards.workoutActions);
+  await ctx.reply(
+    `Выберите необходимое действие:`,
+    keyboardMarkup.make([
+      [buttons.editWorkout],
+      [buttons.deleteWorkout],
+      [buttons.cancel],
+    ])
+  );
   ctx.wizard.steps.push(workoutChouseActionHandler);
   return ctx.wizard.next();
 };
@@ -41,10 +51,7 @@ const workoutChouseActionHandler = async (ctx) => {
 <b><i>${workout.name}</i></b>
 
 Введите новое название или нажмите <b>${buttons.next.toUpperCase()}</b> если название менять не нужно`,
-        keyboards.makeAnswersKeyboard(null, {
-          next: true,
-          cancel: true,
-        })
+        keyboardMarkup.make([[buttons.next], [buttons.cancel]])
       );
       ctx.wizard.steps.push(nameHandler);
       return ctx.wizard.next();
@@ -53,16 +60,20 @@ const workoutChouseActionHandler = async (ctx) => {
     case buttons.deleteWorkout: {
       ctx.wizard.steps.push(workoutDeleteHandler);
       ctx.wizard.next();
-      return await ctx.reply(
+      return ctx.reply(
         `Вы точно решили удалить тренировку?`,
-        keyboards.alert({ yes: true, no: true, cancel: true })
+        keyboardMarkup.alert({ yes: true, no: true, cancel: true })
       );
     }
 
     default:
-      return await ctx.reply(
+      return ctx.reply(
         `Я вас не понял. Выберите необходимое действие:`,
-        keyboards.workoutActions
+        keyboardMarkup.make([
+          [buttons.editWorkout],
+          [buttons.deleteWorkout],
+          [buttons.cancel],
+        ])
       );
   }
 };
@@ -79,9 +90,9 @@ const workoutDeleteHandler = async (ctx) => {
     }
 
     default:
-      return await ctx.reply(
+      return ctx.reply(
         `Я вас не понял. Вы точно решили удалить тренировку?`,
-        keyboards.alert({ yes: true, no: true, cancel: true })
+        keyboardMarkup.alert({ yes: true, no: true, cancel: true })
       );
   }
 };
@@ -90,12 +101,9 @@ const nameHandler = async (ctx) => {
   const text = ctx.message.text.trim();
 
   if (text.length > MAX_NAME_LENGTH) {
-    return await ctx.reply(
+    return ctx.reply(
       `Это название слишком длинное, попробуйте сократить его до ${MAX_NAME_LENGTH} символов и введите ещё раз:`,
-      keyboards.makeAnswersKeyboard(null, {
-        next: true,
-        cancel: true,
-      })
+      keyboardMarkup.make([[buttons.next], [buttons.cancel]])
     );
   }
 
@@ -106,9 +114,9 @@ const nameHandler = async (ctx) => {
   ctx.wizard.steps.push(timeHandler);
   ctx.wizard.next();
 
-  return await ctx.reply(
+  return ctx.reply(
     `Хорошо. Запоминать ли мне длительность тренировки?`,
-    keyboards.alert({
+    keyboardMarkup.alert({
       yes: true,
       no: true,
       cancel: true,
@@ -126,9 +134,9 @@ const timeHandler = async (ctx) => {
     return editQuestion(ctx);
   }
 
-  return await ctx.reply(
+  return ctx.reply(
     `Я вас не понял. Попробуйте воспользоваться клавиатурой.`,
-    keyboards.alert({
+    keyboardMarkup.answerTypest({
       yes: true,
       no: true,
       cancel: true,
@@ -150,7 +158,7 @@ const editQuestion = async (ctx) => {
   ctx.scene.state.question = question;
 
   if (question) {
-    return await ctx.replyWithHTML(
+    return ctx.replyWithHTML(
       `Хорошо. Рассмотрим ваш старый вопрос <b>${
         isBeforeDone ? 'ПОСЛЕ' : 'ДО'
       }</b> тренировки:
@@ -158,7 +166,7 @@ const editQuestion = async (ctx) => {
 
 Выберите необходимое действие или нажмите кнопку <b>${buttons.next.toUpperCase()}</b>, если вопрос редактировать не нужно.`,
       {
-        reply_markup: keyboards.makeAnswersKeyboard(
+        reply_markup: keyboardMarkup.combineAndMake(
           [buttons.deleteQuestion, buttons.editQuestion],
           {
             next: true,
@@ -171,7 +179,7 @@ const editQuestion = async (ctx) => {
 
   ctx.scene.state.isLast = true;
   const extra = {
-    reply_markup: keyboards.makeAnswersKeyboard([buttons.addQuestion], {
+    reply_markup: keyboardMarkup.combineAndMake([buttons.addQuestion], {
       next: true,
       cancel: true,
     }).reply_markup,
@@ -181,7 +189,7 @@ const editQuestion = async (ctx) => {
     isBeforeDone ? 'ПОСЛЕ' : 'ДО'
   } тренировки, нажмите на кнопку <b>${buttons.addQuestion.toUpperCase()}</b> или нажмите кнопку <b>${buttons.next.toUpperCase()}</b> для продолжения`;
 
-  return await ctx.replyWithHTML(answer, extra);
+  return ctx.replyWithHTML(answer, extra);
 };
 
 const chouseQuestionActionHandler = async (ctx) => {
@@ -213,15 +221,13 @@ const chouseQuestionActionHandler = async (ctx) => {
       ctx.scene.state.question = null;
       ctx.wizard.next();
       ctx.wizard.steps.push(questionHandler);
-      return await ctx.replyWithHTML(
+      return ctx.replyWithHTML(
         `Введите текст нового вопроса ${
           isBeforeDone ? 'ПОСЛЕ' : 'ДО'
         } тренировки или нажмите кнопку <b><i>${buttons.next.toUpperCase()}</i></b> для продолжения)`,
         {
-          reply_markup: keyboards.makeAnswersKeyboard(null, {
-            next: true,
-            cancel: true,
-          }).reply_markup,
+          reply_markup: keyboardMarkup.make([[buttons.next], [buttons.cancel]])
+            .reply_markup,
         }
       );
     }
@@ -230,16 +236,14 @@ const chouseQuestionActionHandler = async (ctx) => {
       ctx.wizard.next();
       ctx.wizard.steps.push(questionHandler);
       const { question } = ctx.scene.state;
-      return await ctx.replyWithHTML(
+      return ctx.replyWithHTML(
         `Старый текст вопроса:
 <b><i>${question.question}</i></b>
 
 Введите новый текст или нажмите кнопку <b>${buttons.next.toUpperCase()}</b> если текст вопроса редактировать не нужно.`,
         {
-          reply_markup: keyboards.makeAnswersKeyboard(null, {
-            next: true,
-            cancel: true,
-          }).reply_markup,
+          reply_markup: keyboardMarkup.make([[buttons.next], [buttons.cancel]])
+            .reply_markup,
         }
       );
     }
@@ -247,10 +251,10 @@ const chouseQuestionActionHandler = async (ctx) => {
     case buttons.deleteQuestion: {
       ctx.wizard.next();
       ctx.wizard.steps.push(deleteAlertHandler);
-      return await ctx.replyWithHTML(
+      return ctx.replyWithHTML(
         `<b>Вы уверены, что хотите удалить вопрос?</b>`,
         {
-          reply_markup: keyboards.makeAnswersKeyboard(
+          reply_markup: keyboardMarkup.combineAndMake(
             [buttons.yes, buttons.no],
             {
               cancel: true,
@@ -261,9 +265,9 @@ const chouseQuestionActionHandler = async (ctx) => {
     }
 
     default:
-      return await ctx.reply(
+      return ctx.reply(
         `Не понял. Попробуйте воспользоваться клавиатурой и выбрать нужный вариант:`,
-        keyboards.makeAnswersKeyboard([buttons.addQuestion], {
+        keyboardMarkup.combineAndMake([buttons.addQuestion], {
           next: true,
           cancel: true,
         })
@@ -293,10 +297,10 @@ const deleteAlertHandler = async (ctx) => {
       return editQuestion(ctx);
     }
     default:
-      return await ctx.replyWithHTML(
+      return ctx.replyWithHTML(
         `<b>Не понял. Вы уверены что хотите удалить вопрос?</b>`,
         {
-          reply_markup: keyboards.makeAnswersKeyboard(
+          reply_markup: keyboardMarkup.combineAndMake(
             [buttons.yes, buttons.no],
             {
               cancel: true,
@@ -316,9 +320,9 @@ const questionHandler = async (ctx) => {
   }
 
   if (text.length > MAX_QUESTION_LENGTH) {
-    return await ctx.reply(
+    return ctx.reply(
       `Максимальная длина вопроса: ${MAX_QUESTION_LENGTH} символов. Попробуйте сократить вопрос и введит его ещё раз:`,
-      keyboards.exit_keyboard
+      keyboardMarkup.cancelBtn
     );
   }
 
@@ -343,11 +347,13 @@ const questionHandler = async (ctx) => {
 Введите новое название параметра, который будет привязан к этому вопросу или нажмите кнопку <b>${buttons.next.toUpperCase()}</b> для продолжения)`
     : `Хорошо. Теперь введите название параметра, который будет привязан к этому вопросу`;
 
-  return await ctx.replyWithHTML(answer, {
-    reply_markup: keyboards.makeAnswersKeyboard(null, {
-      cancel: true,
-      next: question ? true : false,
-    }).reply_markup,
+  const btns = [[buttons.cancel]];
+  if (question) {
+    btns.unshift([buttons.next]);
+  }
+
+  return ctx.replyWithHTML(answer, {
+    reply_markup: keyboardMarkup.make(btns).reply_markup,
   });
 };
 
@@ -356,9 +362,9 @@ const paramNameHandler = async (ctx) => {
   const { question } = ctx.scene.state;
 
   if (text.length > MAX_PARAMNAME_LENGTH) {
-    return await ctx.reply(
+    return ctx.reply(
       `Максимальная длина имени параметра: ${MAX_PARAMNAME_LENGTH} символов. Попробуйте сократить имя и введит его ещё раз:`,
-      keyboards.exit_keyboard
+      keyboardMarkup.cancelBtn
     );
   }
 
@@ -374,9 +380,9 @@ const paramNameHandler = async (ctx) => {
 
   ctx.wizard.steps.push(answerTypeHandler);
   ctx.wizard.next();
-  return await ctx.reply(
+  return ctx.reply(
     `Хорошо. Теперь выберите тип ответа (параметра) для введённого вопроса:`,
-    keyboards.answerTypes
+    keyboardMarkup.answerTypes
   );
 };
 
@@ -420,9 +426,9 @@ const answerTypeHandler = async (ctx) => {
       break;
 
     default:
-      return await ctx.reply(
+      return ctx.reply(
         `Введено неправильное значение, воспользуйтесь клавиатурой:`,
-        keyboards.answerTypes
+        keyboardMarkup.answerTypes
       );
   }
 
@@ -430,11 +436,9 @@ const answerTypeHandler = async (ctx) => {
     ctx.wizard.steps.push(possibleAnswersHandler);
     ctx.wizard.next();
 
-    return await ctx.reply(
+    return ctx.reply(
       `Перечислите возможные варианты ответа через запятую:`,
-      keyboards.makeAnswersKeyboard(null, {
-        cancel: true,
-      })
+      keyboardMarkup.make([[buttons.cancel]])
     );
   }
 
@@ -442,7 +446,7 @@ const answerTypeHandler = async (ctx) => {
     question.possibleAnswers = [];
     await ctx.reply(
       `Отлично. Вопрос успешно отредактирован. Идём дальше...`,
-      keyboards.remove_keyboard
+      keyboardMarkup.remove()
     );
     ctx.scene.state.question = null;
     ctx.scene.state.questionIndex++;
@@ -452,7 +456,7 @@ const answerTypeHandler = async (ctx) => {
   ctx.wizard.steps.push(newQuestionHandler);
   ctx.wizard.next();
 
-  return await ctx.replyWithHTML(
+  return ctx.replyWithHTML(
     `Отлично. Вопрос сконфигурирован. ${
       question ? JSON.stringify(question) : ''
     }
@@ -461,7 +465,7 @@ const answerTypeHandler = async (ctx) => {
     } тренировки, нажмите кнопку <b>${buttons.addQuestion.toUpperCase()}</b>.
 Или нажмите кнопку <b>${buttons.next.toUpperCase()}</b> для продолжения.`,
     {
-      reply_markup: keyboards.makeAnswersKeyboard([buttons.addQuestion], {
+      reply_markup: keyboardMarkup.combineAndMake([buttons.addQuestion], {
         next: true,
         cancel: true,
       }).reply_markup,
@@ -474,21 +478,16 @@ const possibleAnswersHandler = async (ctx) => {
   const answers = text.split(',').map((a) => a.trim());
 
   if (answers.length <= 2) {
-    return await ctx.reply(
+    return ctx.reply(
       `Должно быть как минимум 2 варианта. Перечислите возможные варианты ответа через запятую:`,
-      keyboards.makeAnswersKeyboard(null, {
-        cancel: true,
-      })
+      keyboardMarkup.make([[buttons.cancel]])
     );
   }
 
   if (answers.some((answer) => answer.length > MAX_ANSWER_LENGTH)) {
-    return await ctx.reply(
+    return ctx.reply(
       `Варианты ответы должны быть длиной не более ${MAX_ANSWER_LENGTH} символов. Попробуйте сократить их и перечислите новые возможные варианты ответа через запятую:`,
-      keyboards.makeAnswersKeyboard(null, {
-        back: true,
-        cancel: true,
-      })
+      keyboardMarkup.make([[buttons.back], [buttons.cancel]])
     );
   }
 
@@ -506,7 +505,7 @@ const possibleAnswersHandler = async (ctx) => {
   if (question) {
     await ctx.reply(
       `Отлично. Вопрос успешно отредактирован. Идём дальше...`,
-      keyboards.remove_keyboard
+      keyboardMarkup.remove()
     );
     ctx.scene.state.question = null;
     ctx.scene.state.questionIndex++;
@@ -516,14 +515,14 @@ const possibleAnswersHandler = async (ctx) => {
   ctx.wizard.steps.push(newQuestionHandler);
   ctx.wizard.next();
 
-  return await ctx.replyWithHTML(
+  return ctx.replyWithHTML(
     `Отлично. Вопрос сконфигурирован!
 Если хотите дабавить ещё один вопрос ${
       isBeforeDone ? '<b>ПОСЛЕ</b>' : '<b>ДО</b>'
     } тренировки, нажмите кнопку <b><i>${buttons.addQuestion.toUpperCase()}</i></b>.
 Или нажмите кнопку <b><i>${buttons.next.toUpperCase()}</i></b> для продолжения.`,
     {
-      reply_markup: keyboards.makeAnswersKeyboard([buttons.addQuestion], {
+      reply_markup: keyboardMarkup.combineAndMake([buttons.addQuestion], {
         next: true,
         cancel: true,
       }).reply_markup,
@@ -545,20 +544,18 @@ const newQuestionHandler = async (ctx) => {
     case buttons.addQuestion:
       ctx.wizard.next();
       ctx.wizard.steps.push(questionHandler);
-      return await ctx.replyWithHTML(
+      return ctx.replyWithHTML(
         `Введите текст следующего вопроса (или нажмите кнопку <b><i>${buttons.next.toUpperCase()}</i></b> для продолжения)`,
         {
-          reply_markup: keyboards.makeAnswersKeyboard(null, {
-            next: true,
-            cancel: true,
-          }).reply_markup,
+          reply_markup: keyboardMarkup.make([[buttons.next], [buttons.cancel]])
+            .reply_markup,
         }
       );
 
     default:
-      return await ctx.reply(
+      return ctx.reply(
         `Не понял. Попробуйте воспользоваться клавиатурой и выбрать нужный вариант:`,
-        keyboards.makeAnswersKeyboard([buttons.addQuestion], {
+        keyboardMarkup.combineAndMake([buttons.addQuestion], {
           next: true,
           cancel: true,
         })
@@ -572,17 +569,15 @@ editWorkout.leave(async (ctx) => {
   if (ctx.scene.state.deleteWorkout) {
     const { workout } = ctx.scene.state;
     await Workout.deleteOne({ _id: workout.id });
-    await ctx.reply(`Тренировка удалена!`, keyboards.remove_keyboard);
+    await ctx.reply(`Тренировка удалена!`, keyboardMarkup.remove());
     return ctx.scene.enter(`chouseWorkout`); //TODO:
   }
   if (ctx.message.text.trim() === buttons.cancel) {
     return ctx.reply(
       `Редактирование тренировки отменено!`,
-      keyboards.remove_keyboard
+      keyboardMarkup.remove()
     );
   }
-
-  ctx.reply(JSON.stringify(ctx.scene.state));
 
   const { workout, name, before, after, time } = ctx.scene.state;
   const beforeQuestions = before.map((q) => new Question(q));
@@ -596,7 +591,7 @@ editWorkout.leave(async (ctx) => {
 
   await ctx.reply(
     `Отлично! Тренировка сохранена и доступна для выбора в общем каталоге:`,
-    keyboards.remove_keyboard
+    keyboardMarkup.remove()
   );
   return ctx.scene.enter(`chouseWorkout`); //TODO:
 });

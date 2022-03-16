@@ -1,17 +1,19 @@
 const {
   Scenes: { WizardScene },
 } = require('telegraf');
-const keyboards = require('../keyboards/keyboards');
+const keyboardMarkup = require('../keyboards/keyboards');
 const buttons = require('../keyboards/buttons');
 const User = require('../../models/user');
 const answerTypes = require('../enums/answerTypes');
 const Workout = require('../../models/workout');
 const { Question } = require('../../models/question');
 
-const MAX_NAME_LENGTH = 64;
-const MAX_QUESTION_LENGTH = 256;
-const MAX_PARAMNAME_LENGTH = 256;
-const MAX_ANSWER_LENGTH = 64;
+const {
+  MAX_NAME_LENGTH,
+  MAX_QUESTION_LENGTH,
+  MAX_PARAMNAME_LENGTH,
+  MAX_ANSWER_LENGTH,
+} = require('../config/constants');
 
 const enter = async (ctx, { silent }) => {
   ctx.scene.state = {};
@@ -20,7 +22,7 @@ const enter = async (ctx, { silent }) => {
   console.log({ cursor: ctx.wizard.cursor });
 
   if (silent) {
-    await ctx.reply(`Введите название тренировки:`, keyboards.exit_keyboard);
+    await ctx.reply(`Введите название тренировки:`, keyboardMarkup.cancelBtn);
     ctx.wizard.steps.push(nameHandler);
     return ctx.wizard.next();
   }
@@ -29,10 +31,7 @@ const enter = async (ctx, { silent }) => {
     `Отлично! Давай создадим новую тренировку.\n Если процесс создания вызовет сложности, используй команду /help для просмотра инструкций.`
   );
 
-  await ctx.reply(
-    `Для начала, введи название тренировки:`,
-    keyboards.exit_keyboard
-  );
+  await ctx.reply(`Для начала, введи название тренировки:`, keyboardMarkup.cancelBtn);
 
   ctx.wizard.steps.push(nameHandler);
 
@@ -43,9 +42,9 @@ const nameHandler = async (ctx) => {
   const name = ctx.message.text.trim();
 
   if (name.length > MAX_NAME_LENGTH) {
-    return await ctx.reply(
+    return ctx.reply(
       `Это название слишком длинное, попробуй сократить до ${MAX_NAME_LENGTH} символов`,
-      keyboards.exit_keyboard
+      keyboardMarkup.cancelBtn
     );
   }
 
@@ -56,9 +55,9 @@ const nameHandler = async (ctx) => {
   ctx.wizard.next();
   ctx.scene.state.isBackAllowed = true;
 
-  return await ctx.reply(
+  return ctx.reply(
     `Хорошо. Запоминать ли мне длительность тренировки?`,
-    keyboards.alert({
+    keyboardMarkup.alert({
       yes: true,
       no: true,
       back: true,
@@ -79,7 +78,7 @@ const timeHandler = async (ctx) => {
     ctx.wizard.next();
     ctx.wizard.steps.push(questionHandler);
 
-    return await ctx.replyWithHTML(
+    return ctx.replyWithHTML(
       `Хорошо.
 
 Теперь можно сконфигурировать сбор параметров <b>ДО</b> тренировки.
@@ -93,18 +92,17 @@ const timeHandler = async (ctx) => {
 
 Введите текст первого вопроса (или нажмите кнопку <b><i>${buttons.next.toUpperCase()}</i></b>, если вопросы <b>ДО</b> тренировки задавать не нужно)`,
       {
-        reply_markup: keyboards.makeAnswersKeyboard(null, {
-          back: true,
-          next: true,
-          cancel: true,
-        }).reply_markup,
+        reply_markup: keyboardMarkup.make([
+          [buttons.back, buttons.next],
+          [buttons.cancel],
+        ]).reply_markup,
       }
     );
   }
 
-  return await ctx.reply(
+  return ctx.reply(
     `Я вас не понял. Попробуйте воспользоваться клавиатурой`,
-    keyboards.alert({
+    keyboardMarkup.alert({
       yes: true,
       no: true,
       back: true,
@@ -121,9 +119,9 @@ const questionHandler = async (ctx) => {
   }
 
   if (text.length > MAX_QUESTION_LENGTH) {
-    return await ctx.reply(
+    return ctx.reply(
       `Максимальная длина вопроса: ${MAX_QUESTION_LENGTH} символов. Попробуйте сократить вопрос и введит его ещё раз:`,
-      keyboards.exit_keyboard
+      keyboardMarkup.cancelBtn
     );
   }
 
@@ -142,12 +140,9 @@ const questionHandler = async (ctx) => {
   ctx.wizard.next();
   ctx.scene.state.isBackAllowed = true;
 
-  return await ctx.reply(
+  return ctx.reply(
     `Хорошо. Теперь введите название параметра, который будет привязан к этому вопросу.`,
-    keyboards.makeAnswersKeyboard(null, {
-      back: true,
-      cancel: true,
-    })
+    keyboardMarkup.make([[buttons.back], [buttons.cancel]])
   );
 };
 
@@ -155,9 +150,9 @@ const paramNameHandler = async (ctx) => {
   const paramName = ctx.message.text.trim();
 
   if (paramName.length > MAX_PARAMNAME_LENGTH) {
-    return await ctx.reply(
+    return ctx.reply(
       `Максимальная длина имени параметра: ${MAX_PARAMNAME_LENGTH} символов. Попробуйте сократить имя и введит его ещё раз:`,
-      keyboards.exit_keyboard
+      keyboardMarkup.cancelBtn
     );
   }
 
@@ -172,9 +167,9 @@ const paramNameHandler = async (ctx) => {
 
   ctx.wizard.steps.push(answerTypeHandler);
   ctx.wizard.next();
-  return await ctx.reply(
+  return ctx.reply(
     `Хорошо. Теперь выберите тип ответа (параметра) для введённого вопроса:`,
-    keyboards.answerTypes
+    keyboardMarkup.answerTypes
   );
 };
 
@@ -208,9 +203,9 @@ const answerTypeHandler = async (ctx) => {
       break;
 
     default:
-      return await ctx.reply(
+      return ctx.reply(
         `Введено неправильное значение, воспользуйтесь клавиатурой:`,
-        keyboards.answerTypes
+        keyboardMarkup.answerTypes
       );
   }
 
@@ -219,25 +214,22 @@ const answerTypeHandler = async (ctx) => {
     ctx.wizard.next();
     ctx.scene.state.isBackAllowed = true;
 
-    return await ctx.reply(
+    return ctx.reply(
       `Перечислите возможные варианты ответа через запятую:`,
-      keyboards.makeAnswersKeyboard(null, {
-        back: true,
-        cancel: true,
-      })
+      keyboardMarkup.make([[buttons.back], [buttons.cancel]])
     );
   }
 
   ctx.wizard.steps.push(newQuestionHandler);
   ctx.wizard.next();
-  return await ctx.replyWithHTML(
+  return ctx.replyWithHTML(
     `Отлично. Вопрос сконфигурирован.
 Если хотите дабавить ещё один вопрос ${
       isBeforeDone ? '<b>ПОСЛЕ</b>' : '<b>ДО</b>'
     } тренировки, нажмите кнопку <b>${buttons.addQuestion.toUpperCase()}</b>.
 Или нажмите кнопку <b>${buttons.next.toUpperCase()}</b> для продолжения.`,
     {
-      reply_markup: keyboards.makeAnswersKeyboard([buttons.addQuestion], {
+      reply_markup: keyboardMarkup.combineAndMake([buttons.addQuestion], {
         next: true,
         cancel: true,
       }).reply_markup,
@@ -251,23 +243,17 @@ const possibleAnswersHandler = async (ctx) => {
 
   if (answers.length <= 2) {
     ctx.scene.state.isBackAllowed = true;
-    return await ctx.reply(
+    return ctx.reply(
       `Должно быть как минимум 2 варианта. Перечислите возможные варианты ответа через запятую:`,
-      keyboards.makeAnswersKeyboard(null, {
-        back: true,
-        cancel: true,
-      })
+      keyboardMarkup.make([[buttons.back], [buttons.cancel]])
     );
   }
 
   if (answers.some((answer) => answer.length > MAX_ANSWER_LENGTH)) {
     ctx.scene.state.isBackAllowed = true;
-    return await ctx.reply(
+    return ctx.reply(
       `Варианты ответы должны быть длиной не более ${MAX_ANSWER_LENGTH} символов. Попробуйте сократить их и перечислите новые возможные варианты ответа через запятую:`,
-      keyboards.makeAnswersKeyboard(null, {
-        back: true,
-        cancel: true,
-      })
+      keyboardMarkup.make([[buttons.back], [buttons.cancel]])
     );
   }
 
@@ -281,14 +267,14 @@ const possibleAnswersHandler = async (ctx) => {
   ctx.wizard.next();
   ctx.scene.state.isBackAllowed = false;
 
-  return await ctx.replyWithHTML(
+  return ctx.replyWithHTML(
     `Отлично. Вопрос сконфигурирован!
 Если хотите дабавить ещё один вопрос ${
       isBeforeDone ? '<b>ПОСЛЕ</b>' : '<b>ДО</b>'
     } тренировки, нажмите кнопку <b><i>${buttons.addQuestion.toUpperCase()}</i></b>.
 Или нажмите кнопку <b><i>${buttons.next.toUpperCase()}</i></b> для продолжения.`,
     {
-      reply_markup: keyboards.makeAnswersKeyboard([buttons.addQuestion], {
+      reply_markup: keyboardMarkup.combineAndMake([buttons.addQuestion], {
         // back: true,
         next: true,
         cancel: true,
@@ -308,15 +294,14 @@ const newQuestionHandler = async (ctx) => {
         ctx.wizard.next();
         ctx.wizard.steps.push(questionHandler);
 
-        return await ctx.replyWithHTML(
+        return ctx.replyWithHTML(
           `Хорошо. Аналогично, можно сконфигурировать сбор параметров <b>ПОСЛЕ</b> тренировки.
 Введите текст первого вопроса (или нажмите кнопку <b><i>${buttons.next.toUpperCase()}</i></b>, если вопросы <b>ПОСЛЕ</b> тренировки задавать не нужно)`,
           {
-            reply_markup: keyboards.makeAnswersKeyboard(null, {
-              // back: true,
-              next: true,
-              cancel: true,
-            }).reply_markup,
+            reply_markup: keyboardMarkup.make([
+              [buttons.next],
+              [buttons.cancel],
+            ]).reply_markup,
           }
         );
       }
@@ -326,21 +311,18 @@ const newQuestionHandler = async (ctx) => {
       const { isBeforeDone } = ctx.scene.state;
       ctx.wizard.next();
       ctx.wizard.steps.push(questionHandler);
-      return await ctx.replyWithHTML(
+      return ctx.replyWithHTML(
         `Введите текст следующего вопроса (или нажмите кнопку <b><i>${buttons.next.toUpperCase()}</i></b> для продолжения)`,
         {
-          reply_markup: keyboards.makeAnswersKeyboard(null, {
-            // back: true,
-            next: true,
-            cancel: true,
-          }).reply_markup,
+          reply_markup: keyboardMarkup.make([[buttons.next], [buttons.cancel]])
+            .reply_markup,
         }
       );
 
     default:
-      return await ctx.reply(
+      return ctx.reply(
         `Не понял. Попробуйте воспользоваться клавиатурой и выбрать нужный вариант:`,
-        keyboards.makeAnswersKeyboard([buttons.addQuestion], {
+        keyboardMarkup.combineAndMake([buttons.addQuestion], {
           next: true,
           cancel: true,
         })
@@ -352,10 +334,7 @@ const createWorkout = new WizardScene(`createWorkout`, enter);
 
 createWorkout.leave(async (ctx) => {
   if (ctx.message.text.trim() === buttons.cancel) {
-    return ctx.reply(
-      `Создание тренировки отменено!`,
-      keyboards.remove_keyboard
-    );
+    return ctx.reply(`Создание тренировки отменено!`, keyboardMarkup.remove());
   }
 
   const { workoutName, before, after, time } = ctx.scene.state;
@@ -379,7 +358,7 @@ createWorkout.leave(async (ctx) => {
 
   await ctx.reply(
     `Отлично! Тренировка сохранена и доступна для выбора в общем каталоге:`,
-    keyboards.remove_keyboard
+    keyboardMarkup.remove()
   );
   return ctx.scene.enter(`chouseWorkout`); //TODO
 });

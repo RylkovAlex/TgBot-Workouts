@@ -4,6 +4,7 @@ module.exports = {
   back: `Назад`,
   yes: `Да`,
   no: `Нет`,
+  start: `Старт`,
   editWorkouts: `Редактировать тренировки`,
   createWorkout: `Создать тренировку`,
   deleteWorkout: `Удалить тренировку`,

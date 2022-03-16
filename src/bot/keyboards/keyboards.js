@@ -4,47 +4,42 @@ const buttons = require('./buttons');
 const User = require('../../models/user');
 const combineArrElems = require('../../utils/combineArrElems');
 const actions = require('../enums/actions');
-
-const keyboardMarkup = {
-  remove() {
-    return Markup.removeKeyboard();
-  },
-
-  make(markup) {
-    return Markup.keyboard(markup).oneTime().resize();
-  },
-};
-
-const keyboards = {
-  remove_keyboard: Markup.removeKeyboard(),
-  exit_keyboard: Markup.keyboard([buttons.cancel]).oneTime().resize(),
-
-  training_keyboard: Markup.keyboard([
-    [buttons.back, buttons.next],
-    [buttons.cancel],
-  ])
-    .oneTime()
-    .resize(),
-
-  answerTypes: Markup.keyboard([
+class KeyboardMarkup {
+  answerTypes = this.make([
     [buttons.answerTypeString, buttons.answerTypeNumber],
     [buttons.answerTypeRadio],
     [buttons.answerTypeMultiple],
     [buttons.back],
     [buttons.cancel],
-  ])
-    .oneTime()
-    .resize(),
+  ]);
 
-  workoutActions: Markup.keyboard([
-    [buttons.editWorkout],
-    [buttons.deleteWorkout],
-    [buttons.cancel],
-  ])
-    .oneTime()
-    .resize(),
+  cancelBtn = this.make([[buttons.cancel]]);
 
-  alert: ({ yes, no, back, cancel }) => {
+  remove() {
+    return Markup.removeKeyboard();
+  }
+
+  make(markup) {
+    return Markup.keyboard(markup).oneTime().resize();
+  }
+
+  combineAndMake(btnsToCombine, options) {
+    const { combiner = 3, cancel, back, next } = options;
+
+    const btns = btnsToCombine ? combineArrElems(btnsToCombine, combiner) : [];
+
+    if (back && next) {
+      btns.push([buttons.back, buttons.next]);
+    } else if (back || next) {
+      btns.push([back ? buttons.back : buttons.next]);
+    }
+    if (cancel) {
+      btns.push([buttons.cancel]);
+    }
+    return Markup.keyboard(btns).oneTime().resize();
+  }
+
+  alert({ yes, no, back, cancel }) {
     const btns = [];
     if (yes && no) {
       btns.push([buttons.no, buttons.yes]);
@@ -59,16 +54,32 @@ const keyboards = {
       btns.push([buttons.cancel]);
     }
 
-    return Markup.keyboard(btns).oneTime().resize();
-  },
+    return this.make(btns).oneTime().resize();
+  }
 
-  makeStartTrainingAlert: (ctx, sceneId) => {
+  makeInline(markup, { ctx, sceneId }) {
+    return Markup.inlineKeyboard(
+      markup.map((btnsRow) =>
+        btnsRow.map((btnParams) =>
+          Markup.button.callback(
+            btnParams.name,
+            ctx.makeCbData({
+              scene: sceneId,
+              action: btnParams.action,
+            })
+          )
+        )
+      )
+    );
+  }
+
+  inline_beforeStartWorkout(ctx, sceneId) {
     const { payload } = ctx.getCbData();
 
     return Markup.inlineKeyboard([
       [
         Markup.button.callback(
-          'Старт',
+          buttons.start,
           ctx.makeCbData({
             scene: sceneId,
             action: actions.START,
@@ -86,26 +97,16 @@ const keyboards = {
         ),
       ],
     ]);
-  },
+  }
 
-  async makeWorkoutsKeyboard(ctx, { sceneId, action, addBtns }) {
+  async inline_workouts(ctx, { sceneId, action, addBtns }) {
     const user = await User.findOne({ tgId: ctx.from.id });
     await user.populate('workouts').execPopulate();
     ctx.session.user = user;
     const { workouts } = user;
 
     if (!workouts || workouts.length === 0) {
-      return Markup.inlineKeyboard([
-        [
-          Markup.button.callback(
-            buttons.createWorkout,
-            ctx.makeCbData({
-              scene: sceneId,
-              action,
-            })
-          ),
-        ],
-      ]);
+      return null;
     }
 
     const mapper = (workout) => {
@@ -159,22 +160,7 @@ const keyboards = {
     }
 
     return Markup.inlineKeyboard(btns);
-  },
+  }
+}
 
-  makeAnswersKeyboard(answers, options) {
-    const btns = answers ? combineArrElems(answers, 3) : [];
-
-    const { cancel, back, next } = options;
-    if (back && next) {
-      btns.push([buttons.back, buttons.next]);
-    } else if (back || next) {
-      btns.push([back ? buttons.back : buttons.next]);
-    }
-    if (cancel) {
-      btns.push([buttons.cancel]);
-    }
-    return Markup.keyboard(btns).oneTime().resize();
-  },
-};
-
-module.exports = keyboards;
+module.exports = new KeyboardMarkup();

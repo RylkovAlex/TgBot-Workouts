@@ -1,9 +1,14 @@
 const {
   Scenes: { WizardScene },
 } = require('telegraf');
-const keyboards = require('../keyboards/keyboards');
+const keyboardMarkup = require('../keyboards/keyboards');
 const buttons = require('../keyboards/buttons');
 const answerTypes = require('../enums/answerTypes');
+
+const basicSceneKeyboard = keyboardMarkup.make([
+  [buttons.back, buttons.next],
+  [buttons.cancel],
+]);
 
 const enterHandler = async (ctx) => {
   const { workout } = ctx.scene.state;
@@ -27,12 +32,9 @@ const enterHandler = async (ctx) => {
 
 const startWorkout = new WizardScene(`startWorkout`, enterHandler);
 
-startWorkout.leave((ctx) => {
+startWorkout.leave(async (ctx) => {
   if (ctx.message.text === buttons.cancel) {
-    return ctx.reply(
-      `Тренировочная сессия отменена`,
-      keyboards.remove_keyboard
-    );
+    return ctx.reply(`Тренировочная сессия отменена`, keyboardMarkup.remove());
   }
   const { result } = ctx.scene.state;
   let resultString = '';
@@ -49,10 +51,11 @@ startWorkout.leave((ctx) => {
     }
   }
 
-  return ctx.reply(
+  await ctx.reply(
     `Тренировочная сессия сохранена:\n${resultString}`,
-    keyboards.remove_keyboard
+    keyboardMarkup.remove()
   );
+  return ctx.scene.enter(`chouseWorkout`); //TODO:
 });
 
 startWorkout.hears(buttons.back, (ctx) => {
@@ -88,14 +91,14 @@ function getQuestionHandlers(q) {
       answerType === answerTypes.STRING ||
       answerType === answerTypes.NUMBER
     ) {
-      await ctx.reply(question, keyboards.training_keyboard);
+      await ctx.reply(question, basicSceneKeyboard);
     } else {
-      const keyboard = keyboards.makeAnswersKeyboard(possibleAnswers, {
+      const keyboard = keyboardMarkup.combineAndMake(possibleAnswers, {
         cancel: true,
         next: true,
         back: true,
       });
-      ctx.reply(question, keyboard);
+      await ctx.reply(question, keyboard);
     }
 
     if (answerType === answerTypes.MULTIPLE) {
@@ -124,7 +127,7 @@ function getQuestionHandlers(q) {
         if (isNaN(number)) {
           return ctx.reply(
             `Параметром должно быть число. Попробуем ещё раз. \n${question}`,
-            keyboards.training_keyboard
+            basicSceneKeyboard
           );
         } else {
           ctx.scene.state.result[paramName] = number;
@@ -144,7 +147,7 @@ function getQuestionHandlers(q) {
 
           return ctx.reply(
             `Можно выбрать несколько вариантов или нажать "далее" для продолжения`,
-            keyboards.makeAnswersKeyboard(updatedPossibleAnswers, {
+            keyboardMarkup.combineAndMake(updatedPossibleAnswers, {
               cancel: true,
               next: true,
               back: true,
@@ -154,7 +157,7 @@ function getQuestionHandlers(q) {
 
         return ctx.reply(
           `Введён неверный ответ. Выберите один из вариантов: \n`,
-          keyboards.makeAnswersKeyboard(possibleAnswers, {
+          keyboardMarkup.combineAndMake(possibleAnswers, {
             cancel: true,
             next: true,
             back: true,
@@ -170,7 +173,7 @@ function getQuestionHandlers(q) {
         }
         return ctx.reply(
           `Введён неверный ответ. Выберите один из вариантов: \n`,
-          keyboards.makeAnswersKeyboard(possibleAnswers, {
+          keyboardMarkup.combineAndMake(possibleAnswers, {
             cancel: true,
             next: true,
             back: true,
@@ -189,10 +192,10 @@ function getQuestionHandlers(q) {
 
 function getTimeHandlers(time) {
   if (!time) {
-    const firstHandler = (ctx) => {
-      ctx.reply(
+    const firstHandler = async (ctx) => {
+      await ctx.reply(
         `Тренировочная сессия запущена. После тренировки нажмите "далее"`,
-        keyboards.training_keyboard
+        basicSceneKeyboard
       );
       return ctx.wizard.next();
     };
@@ -204,18 +207,18 @@ function getTimeHandlers(time) {
       } else {
         return ctx.reply(
           `Тренирока в процессе. После тренировки нажмите "далее"`,
-          keyboards.training_keyboard
+          basicSceneKeyboard
         );
       }
     };
     return [firstHandler, secondHandler];
   }
 
-  const firstHandler = (ctx) => {
+  const firstHandler = async (ctx) => {
     ctx.scene.state.startTime = Date.now();
-    ctx.reply(
+    await ctx.reply(
       `Тренировочная сессия запущена. После тренировки нажмите "далее"`,
-      keyboards.training_keyboard
+      basicSceneKeyboard
     );
     return ctx.wizard.next();
   };
@@ -233,7 +236,7 @@ function getTimeHandlers(time) {
     } else {
       return ctx.reply(
         `Тренировка в процессе. После тренировки нажмите "далее"`,
-        keyboards.training_keyboard
+        basicSceneKeyboard
       );
     }
   };

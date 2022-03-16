@@ -18,10 +18,10 @@ const stage = new Stage(Object.values(scenes), {
 });
 // stage.register(startWorkout);
 stage.hears(buttons.cancel, (ctx, next) => {
-  if (ctx.scene) {
+  if (ctx.session?.__scenes?.current) {
     return ctx.scene.leave();
   }
-  return next();
+  return ctx.scene.enter('chouseWorkout'); //TODO:
 });
 stage.on('callback_query', (ctx) => {
   const data = ctx.getCbData();

@@ -2,22 +2,21 @@ const {
   Scenes: { BaseScene },
 } = require('telegraf');
 const chouseWorkout = require('./chouseWorkout');
-const keyboards = require('../keyboards/keyboards');
+const keyboardMarkup = require('../keyboards/keyboards');
 const buttons = require('../keyboards/buttons');
 const User = require('../../models/user');
 
 const createUserSheet = new BaseScene(`createUserSheet`);
 
-createUserSheet.enter((ctx) => {
-  ctx.reply(
+createUserSheet.enter(async (ctx) => {
+  await ctx.reply(
     `Для работы мне нужно будет создать сводную гугл-таблицу, потребуется твой email привязанный к Google-аккаунту\n\nПожалуйста, указывай реальную почту (@gmail.com), иначе ты не получишь доступа к таблице со статистикой!`,
-    keyboards.exit_keyboard
+    keyboardMarkup.cancelBtn
   );
 });
 
 createUserSheet.on(`text`, async (ctx) => {
   const user = await User.findOne({ tgId: ctx.from.id });
-  console.log(user)
 
   const { text } = ctx.message;
 
@@ -26,7 +25,7 @@ createUserSheet.on(`text`, async (ctx) => {
   );
 
   if (text.match(emailRegexp) && text.includes(`@gmail.com`)) {
-    ctx.reply(`Отлично! Создаю таблицу... Скоро пришлю ссылку.`);
+    await ctx.reply(`Отлично! Создаю таблицу... Скоро пришлю ссылку.`);
 
     user.email = text;
 
@@ -39,21 +38,21 @@ createUserSheet.on(`text`, async (ctx) => {
   } else {
     return ctx.reply(
       `Неправильный формат email!\nПопробуйте ещё раз:`,
-      keyboards.exit_keyboard
+      keyboardMarkup.cancelBtn
     );
   }
 });
 
-createUserSheet.leave((ctx) => {
+createUserSheet.leave(async (ctx) => {
   if (ctx.message.text === buttons.cancel) {
     return ctx.reply(
       `Команда отменена. Для продолжения используй команду:\n/start`,
-      keyboards.remove_keyboard
+      keyboardMarkup.remove()
     );
   }
-  ctx.reply(
+  await ctx.reply(
     `Готово! Сейчас пришлю тебе дефолтный список тренировок.\nЕсли что-то не понятно, используй команду:\n/help`,
-    keyboards.remove_keyboard
+    keyboardMarkup.remove()
   );
 
   return ctx.scene.enter(chouseWorkout.id);
