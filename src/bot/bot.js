@@ -6,12 +6,18 @@ const {
   Telegram,
 } = require('telegraf');
 
+const User = require('../models/user');
+
 const buttons = require('./keyboards/buttons');
 
 const checkChat = require('./middlewares/checkChat');
 
 const handleStart = require('./commands/start');
+const handleTable = require('./commands/table');
 const scenes = require('./scenes/scenes');
+const commands = require('./enums/commands');
+
+const SpreadSheet = require('../utils/spreadSheet');
 
 const stage = new Stage(Object.values(scenes), {
   sessionName: 'chatSession',
@@ -21,7 +27,7 @@ stage.hears(buttons.cancel, (ctx, next) => {
   if (ctx.session?.__scenes?.current) {
     return ctx.scene.leave();
   }
-  return ctx.scene.enter('chouseWorkout'); //TODO:
+  return ctx.scene.enter(scenes.chouseWorkout.id);
 });
 stage.on('callback_query', (ctx) => {
   const data = ctx.getCbData();
@@ -69,6 +75,28 @@ class CustomContext extends Context {
       payload: data[2],
     };
   }
+
+  async getUser() {
+    return (
+      this.session.user ||
+      (this.session.user = await User.findOne({ tgId: this.from.id }).catch(
+        (error) => {
+          this.reply(
+            `Ошибка получени пользователя из базы: ${error.message}`,
+            keyboardMarkup.remove()
+          );
+        }
+      ))
+    );
+  }
+
+  async getSpreadSheet() {
+    const user = await this.getUser();
+    return (
+      this.session.spreadsheet ||
+      (this.session.spreadsheet = await SpreadSheet.build(user))
+    );
+  }
 }
 
 const bot = new Telegraf(process.env.BOT_TOKEN, { contextType: CustomContext });
@@ -87,6 +115,11 @@ bot.on(`callback_query`, (ctx) => {
     return ctx.scene.enter(data.scene, data);
   }
 });
+
+bot.command(commands.TABLE, handleTable);
+bot.command(commands.NEW_TABLE, (ctx) =>
+  ctx.scene.enter(scenes.createUserSheet.id, { forced: true })
+);
 
 bot.catch((err, ctx) => {
   console.log(`An error for ${ctx.updateType}`, { err }, { ctx });

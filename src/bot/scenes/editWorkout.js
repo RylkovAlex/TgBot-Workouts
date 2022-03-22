@@ -15,7 +15,6 @@ const {
   MAX_ANSWER_LENGTH,
 } = require('../config/constants');
 
-
 const enter = async (ctx) => {
   ctx.wizard.steps.splice(1, ctx.wizard.steps.length);
   ctx.wizard.cursor = 0;
@@ -460,7 +459,7 @@ const answerTypeHandler = async (ctx) => {
     `Отлично. Вопрос сконфигурирован. ${
       question ? JSON.stringify(question) : ''
     }
-Если хотите дабавить ещё один вопрос ${
+Если хотите добавить ещё один вопрос ${
       isBeforeDone ? '<b>ПОСЛЕ</b>' : '<b>ДО</b>'
     } тренировки, нажмите кнопку <b>${buttons.addQuestion.toUpperCase()}</b>.
 Или нажмите кнопку <b>${buttons.next.toUpperCase()}</b> для продолжения.`,
@@ -517,7 +516,7 @@ const possibleAnswersHandler = async (ctx) => {
 
   return ctx.replyWithHTML(
     `Отлично. Вопрос сконфигурирован!
-Если хотите дабавить ещё один вопрос ${
+Если хотите добавить ещё один вопрос ${
       isBeforeDone ? '<b>ПОСЛЕ</b>' : '<b>ДО</b>'
     } тренировки, нажмите кнопку <b><i>${buttons.addQuestion.toUpperCase()}</i></b>.
 Или нажмите кнопку <b><i>${buttons.next.toUpperCase()}</i></b> для продолжения.`,
@@ -568,7 +567,13 @@ const editWorkout = new WizardScene(`editWorkout`, enter);
 editWorkout.leave(async (ctx) => {
   if (ctx.scene.state.deleteWorkout) {
     const { workout } = ctx.scene.state;
-    await Workout.deleteOne({ _id: workout.id });
+    await Promise.all([
+      Workout.deleteOne({ _id: workout.id }),
+      ctx
+        .getSpreadSheet()
+        .then((spreadSheet) => spreadSheet.deleteSheet(workout.name)),
+    ]);
+
     await ctx.reply(`Тренировка удалена!`, keyboardMarkup.remove());
     return ctx.scene.enter(`chouseWorkout`); //TODO:
   }

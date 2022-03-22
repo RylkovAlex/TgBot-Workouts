@@ -73,6 +73,15 @@ class KeyboardMarkup {
     );
   }
 
+  link_table(spreadSheetId) {
+    return Markup.inlineKeyboard([
+      Markup.button.url(
+        'Статистика по тренировкам',
+        `https://docs.google.com/spreadsheets/d/${spreadSheetId}`
+      ),
+    ]);
+  }
+
   inline_beforeStartWorkout(ctx, sceneId) {
     const { payload } = ctx.getCbData();
 
@@ -100,7 +109,7 @@ class KeyboardMarkup {
   }
 
   async inline_workouts(ctx, { sceneId, action, addBtns }) {
-    const user = await User.findOne({ tgId: ctx.from.id });
+    const user = await ctx.getUser();
     await user.populate('workouts').execPopulate();
     ctx.session.user = user;
     const { workouts } = user;

@@ -31,7 +31,10 @@ const enter = async (ctx, { silent }) => {
     `Отлично! Давай создадим новую тренировку.\n Если процесс создания вызовет сложности, используй команду /help для просмотра инструкций.`
   );
 
-  await ctx.reply(`Для начала, введи название тренировки:`, keyboardMarkup.cancelBtn);
+  await ctx.reply(
+    `Для начала, введи название тренировки:`,
+    keyboardMarkup.cancelBtn
+  );
 
   ctx.wizard.steps.push(nameHandler);
 
@@ -224,7 +227,7 @@ const answerTypeHandler = async (ctx) => {
   ctx.wizard.next();
   return ctx.replyWithHTML(
     `Отлично. Вопрос сконфигурирован.
-Если хотите дабавить ещё один вопрос ${
+Если хотите добавить ещё один вопрос ${
       isBeforeDone ? '<b>ПОСЛЕ</b>' : '<b>ДО</b>'
     } тренировки, нажмите кнопку <b>${buttons.addQuestion.toUpperCase()}</b>.
 Или нажмите кнопку <b>${buttons.next.toUpperCase()}</b> для продолжения.`,
@@ -269,7 +272,7 @@ const possibleAnswersHandler = async (ctx) => {
 
   return ctx.replyWithHTML(
     `Отлично. Вопрос сконфигурирован!
-Если хотите дабавить ещё один вопрос ${
+Если хотите добавить ещё один вопрос ${
       isBeforeDone ? '<b>ПОСЛЕ</b>' : '<b>ДО</b>'
     } тренировки, нажмите кнопку <b><i>${buttons.addQuestion.toUpperCase()}</i></b>.
 Или нажмите кнопку <b><i>${buttons.next.toUpperCase()}</i></b> для продолжения.`,
@@ -338,15 +341,23 @@ createWorkout.leave(async (ctx) => {
   }
 
   const { workoutName, before, after, time } = ctx.scene.state;
-  const beforeQuestions = before.map((q) => new Question(q));
-  const afterQuestions = after.map((q) => new Question(q));
-
-  let { user } = ctx.session;
-  if (!user) {
-    user = await User.findOne({ tgId: ctx.from.id });
+  const headerSheetValues = ['Дата'];
+  if (time) {
+    headerSheetValues.push('Длительность, мин.');
   }
 
-  await new Workout({
+  const beforeQuestions = before.map((q) => {
+    headerSheetValues.push(q.paramName);
+    return new Question(q);
+  });
+  const afterQuestions = after.map((q) => {
+    headerSheetValues.push(q.paramName);
+    return new Question(q);
+  });
+
+  const user = await ctx.getUser();
+
+  const workout = await new Workout({
     name: workoutName,
     params: {
       time,
@@ -355,6 +366,20 @@ createWorkout.leave(async (ctx) => {
     },
     owner: user._id,
   }).save();
+
+  const spreadSheet = await ctx.getSpreadSheet();
+
+  await spreadSheet
+    .addSheet({
+      title: workout.name,
+      headerValues: headerSheetValues,
+    })
+    .catch((error) => {
+      console.log(error);
+      throw new Error(
+        `Ошибка создания нового листа в сводной таблице: ${error.message}`
+      );
+    });
 
   await ctx.reply(
     `Отлично! Тренировка сохранена и доступна для выбора в общем каталоге:`,

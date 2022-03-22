@@ -5,41 +5,64 @@ const chouseWorkout = require('./chouseWorkout');
 const keyboardMarkup = require('../keyboards/keyboards');
 const buttons = require('../keyboards/buttons');
 const User = require('../../models/user');
+const SpreadSheet = require('../../utils/spreadSheet');
+
+const emailRegexp = new RegExp(
+  /^(([^<>()[\]\.,;:\s@\"]+(\.[^<>()[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$/i
+);
 
 const createUserSheet = new BaseScene(`createUserSheet`);
 
 createUserSheet.enter(async (ctx) => {
-  await ctx.reply(
-    `Для работы мне нужно будет создать сводную гугл-таблицу, потребуется твой email привязанный к Google-аккаунту\n\nПожалуйста, указывай реальную почту (@gmail.com), иначе ты не получишь доступа к таблице со статистикой!`,
-    keyboardMarkup.cancelBtn
-  );
+  const { forced } = ctx.scene.state;
+  const user = await ctx.getUser();
+  if (forced || !user.spreadSheetId) {
+    return ctx.replyWithHTML(
+      `Для полноценной работы мне нужно будет создать сводную гугл-таблицу, потребуется твой email, привязанный к Google-аккаунту.
+
+Пожалуйста, указывай реальную почту (на домене <b>gmail.com</b>), иначе ты не получишь доступа к таблице со своей статистикой тренировок!`,
+      keyboardMarkup.cancelBtn
+    );
+  }
+
+  return ctx.scene.leave();
 });
 
 createUserSheet.on(`text`, async (ctx) => {
-  const user = await User.findOne({ tgId: ctx.from.id });
+  try {
+    const user = await ctx.getUser();
+    const email = ctx.message.text.trim();
 
-  const { text } = ctx.message;
+    if (email.match(emailRegexp) && email.includes(`@gmail.com`)) {
+      await ctx.reply(
+        `Отлично! Создаю таблицу для сбора статистики... Скоро пришлю ссылку.`
+      );
 
-  const emailRegexp = new RegExp(
-    /^(([^<>()[\]\.,;:\s@\"]+(\.[^<>()[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$/i
-  );
+      const spreadSheet = await ctx.getSpreadSheet();
 
-  if (text.match(emailRegexp) && text.includes(`@gmail.com`)) {
-    await ctx.reply(`Отлично! Создаю таблицу... Скоро пришлю ссылку.`);
+      const spreadSheetId = await spreadSheet.create({
+        title: `My Workouts`,
+        userEmail: user.email,
+      });
 
-    user.email = text;
+      user.email = email;
+      user.spreadSheetId = spreadSheetId;
 
-    try {
-      await user.save();
+      ctx.session.user = await user.save();
+      await ctx.replyWithHTML(`Таблица готова:
+<a href="https://docs.google.com/spreadsheets/d/${spreadSheetId}">ссылка</a>
+Проверь пожалуйста свою почту и прими запрос на передачу прав владения таблицей.
+
+Дальше она будет доступна по команде /table`);
       return ctx.scene.leave();
-    } catch (error) {
-      return ctx.reply(`Ошибка! ${error.message}/n`);
+    } else {
+      return ctx.reply(
+        `Неправильный формат email!\nПопробуйте ещё раз:`,
+        keyboardMarkup.cancelBtn
+      );
     }
-  } else {
-    return ctx.reply(
-      `Неправильный формат email!\nПопробуйте ещё раз:`,
-      keyboardMarkup.cancelBtn
-    );
+  } catch (error) {
+    return ctx.reply(`Ошибка! ${error.message}`, keyboardMarkup.remove());
   }
 });
 
@@ -51,7 +74,9 @@ createUserSheet.leave(async (ctx) => {
     );
   }
   await ctx.reply(
-    `Готово! Сейчас пришлю тебе дефолтный список тренировок.\nЕсли что-то не понятно, используй команду:\n/help`,
+    `Сейчас пришлю тебе дефолтный список тренировок для примера.
+Если что-то не понятно, используй команду:
+/help`,
     keyboardMarkup.remove()
   );
 

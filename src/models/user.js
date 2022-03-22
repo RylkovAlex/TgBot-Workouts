@@ -18,6 +18,10 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    spreadSheetId: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true,
