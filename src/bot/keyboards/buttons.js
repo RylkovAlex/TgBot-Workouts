@@ -8,6 +8,7 @@ module.exports = {
   editWorkouts: `Редактировать тренировки`,
   createWorkout: `Создать тренировку`,
   deleteWorkout: `Удалить тренировку`,
+  endWorkoutSession: `Закончить!`,
   editWorkout: `Редактировать тренировку`,
   answerTypeString: `Текст`,
   answerTypeNumber: `Число`,

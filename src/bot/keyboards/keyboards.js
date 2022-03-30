@@ -15,6 +15,13 @@ class KeyboardMarkup {
 
   cancelBtn = this.make([[buttons.cancel]]);
 
+  link_errorForm = Markup.inlineKeyboard([
+    Markup.button.url(
+      'Сообщить об ошибке',
+      `https://forms.gle/2w5W4ait96Ffd3Hn6`
+    ),
+  ]);
+
   remove() {
     return Markup.removeKeyboard();
   }

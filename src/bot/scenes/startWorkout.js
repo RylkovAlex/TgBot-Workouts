@@ -1,9 +1,13 @@
 const {
   Scenes: { WizardScene },
 } = require('telegraf');
+
+const { Answer } = require('../../models/answer');
+const { Session } = require('../../models/session');
 const keyboardMarkup = require('../keyboards/keyboards');
 const buttons = require('../keyboards/buttons');
 const answerTypes = require('../enums/answerTypes');
+const scenes = require('../enums/scenes');
 
 const basicSceneKeyboard = keyboardMarkup.make([
   [buttons.back, buttons.next],
@@ -14,7 +18,10 @@ const enterHandler = async (ctx) => {
   const { workout } = ctx.scene.state;
 
   ctx.scene.state = {
-    result: {},
+    ...ctx.scene.state,
+    result: {
+      answers: [],
+    },
   };
 
   const handlers = getStartWorkoutHandlers(workout);
@@ -33,29 +40,38 @@ const enterHandler = async (ctx) => {
 const startWorkout = new WizardScene(`startWorkout`, enterHandler);
 
 startWorkout.leave(async (ctx) => {
-  if (ctx.message.text === buttons.cancel) {
-    return ctx.reply(`Тренировочная сессия отменена`, keyboardMarkup.remove());
-  }
-  const { result } = ctx.scene.state;
-  let resultString = '';
-
-  for (answer in result) {
-    if (
-      typeof result[answer] === 'string' ||
-      typeof result[answer] === 'number' ||
-      result[answer].length > 0
-    ) {
-      resultString = `${resultString}\n${answer}: ${result[answer]}`;
-    } else {
-      delete result[answer];
+  try {
+    if (ctx.message.text === buttons.cancel) {
+      await ctx.reply(
+        `Тренировочная сессия отменена! Доступные тренировки:`,
+        keyboardMarkup.remove()
+      );
+      return ctx.scene.enter(scenes.chouseWorkout);
     }
-  }
+    await ctx.reply(`Сохраняю результат тренировки...`);
+    const { workout, result } = ctx.scene.state;
+    const { answers, time } = result;
+    const session = {
+      answers,
+      workout: workout._id,
+    };
+    if (time) {
+      session.time = result.time;
+    }
 
-  await ctx.reply(
-    `Тренировочная сессия сохранена:\n${resultString}`,
-    keyboardMarkup.remove()
-  );
-  return ctx.scene.enter(`chouseWorkout`); //TODO:
+    const spreadSheet = await ctx.getSpreadSheet();
+    await new Session(session)
+      .save()
+      .then((session) => spreadSheet.addSession(session));
+
+    await ctx.reply(
+      `Отлично! Тренировочная сессия сохранена.`,
+      keyboardMarkup.remove()
+    );
+    return ctx.scene.enter(scenes.chouseWorkout);
+  } catch (error) {
+    ctx.handleError(error);
+  }
 });
 
 startWorkout.hears(buttons.back, (ctx) => {
@@ -84,7 +100,7 @@ function getStartWorkoutHandlers(workout) {
 }
 
 function getQuestionHandlers(q) {
-  const { question, paramName, answerType, possibleAnswers } = q;
+  const { question, answerType, possibleAnswers, _id: questionId } = q;
 
   const questionHandler = async (ctx) => {
     if (
@@ -102,7 +118,12 @@ function getQuestionHandlers(q) {
     }
 
     if (answerType === answerTypes.MULTIPLE) {
-      ctx.scene.state.result[paramName] = [];
+      ctx.scene.state.result.answers.push(
+        new Answer({
+          question: questionId,
+          answer: [],
+        })
+      );
     }
 
     return ctx.wizard.next();
@@ -114,10 +135,16 @@ function getQuestionHandlers(q) {
       ctx.wizard.next();
       return ctx.wizard.steps[ctx.wizard.cursor](ctx);
     }
+    const { answers } = ctx.scene.state.result;
 
     switch (answerType) {
       case answerTypes.STRING: {
-        ctx.scene.state.result[paramName] = answer;
+        answers.push(
+          new Answer({
+            question: questionId,
+            answer,
+          })
+        );
         ctx.wizard.next();
         break;
       }
@@ -130,14 +157,21 @@ function getQuestionHandlers(q) {
             basicSceneKeyboard
           );
         } else {
-          ctx.scene.state.result[paramName] = number;
+          answers.push(
+            new Answer({
+              question: questionId,
+              answer: number,
+            })
+          );
           ctx.wizard.next();
           break;
         }
       }
 
       case answerTypes.MULTIPLE: {
-        const givenAnswers = ctx.scene.state.result[paramName];
+        const givenAnswers = answers.find(
+          (a) => a.question === questionId
+        ).answer;
 
         if (possibleAnswers.includes(answer)) {
           givenAnswers.push(answer);
@@ -167,7 +201,12 @@ function getQuestionHandlers(q) {
 
       case answerTypes.RADIO: {
         if (possibleAnswers.includes(answer)) {
-          ctx.scene.state.result[paramName] = answer;
+          answers.push(
+            new Answer({
+              question: questionId,
+              answer,
+            })
+          );
           ctx.wizard.next();
           break;
         }
@@ -194,7 +233,7 @@ function getTimeHandlers(time) {
   if (!time) {
     const firstHandler = async (ctx) => {
       await ctx.reply(
-        `Тренировочная сессия запущена. После тренировки нажмите "далее"`,
+        `Тренировочная сессия запущена. После тренировки нажмите ${buttons.next}`,
         basicSceneKeyboard
       );
       return ctx.wizard.next();
@@ -206,7 +245,7 @@ function getTimeHandlers(time) {
         return ctx.wizard.steps[ctx.wizard.cursor](ctx);
       } else {
         return ctx.reply(
-          `Тренирока в процессе. После тренировки нажмите "далее"`,
+          `Тренирока в процессе. После тренировки нажмите ${buttons.next}`,
           basicSceneKeyboard
         );
       }
@@ -217,7 +256,7 @@ function getTimeHandlers(time) {
   const firstHandler = async (ctx) => {
     ctx.scene.state.startTime = Date.now();
     await ctx.reply(
-      `Тренировочная сессия запущена. После тренировки нажмите "далее"`,
+      `Тренировочная сессия запущена, идёт отсчёт времени! После тренировки вернитесь в чат и нажмите ${buttons.next}`,
       basicSceneKeyboard
     );
     return ctx.wizard.next();
@@ -228,14 +267,14 @@ function getTimeHandlers(time) {
     if (text === buttons.next) {
       const { startTime } = ctx.scene.state;
       const finishTime = Date.now();
-      const time = (finishTime - startTime) / 60000;
+      const time = Math.floor((finishTime - startTime) / 60000);
 
       ctx.scene.state.result.time = time;
       ctx.wizard.next();
       return ctx.wizard.steps[ctx.wizard.cursor](ctx);
     } else {
       return ctx.reply(
-        `Тренировка в процессе. После тренировки нажмите "далее"`,
+        `Тренирока в процессе. После тренировки нажмите ${buttons.next}`,
         basicSceneKeyboard
       );
     }

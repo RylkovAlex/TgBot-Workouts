@@ -18,7 +18,8 @@
     "mongodb": "3.7.2",
     "mongoose": "5.13.11",
     "mongose": "0.0.2-security",
-    "telegraf": "^4.7.0"
+    "telegraf": "^4.7.0",
+    "lodash": "^4.17.21"
   },
   "devDependencies": {
     "env-cmd": "^10.1.0",

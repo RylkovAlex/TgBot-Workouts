@@ -3,10 +3,10 @@ const {
 } = require('telegraf');
 const keyboardMarkup = require('../keyboards/keyboards');
 const buttons = require('../keyboards/buttons');
-const Workout = require('../../models/workout');
-const User = require('../../models/user');
+const scenes = require('../enums/scenes');
 const answerTypes = require('../enums/answerTypes');
 const { Question } = require('../../models/question');
+const _ = require('lodash');
 
 const {
   MAX_NAME_LENGTH,
@@ -18,6 +18,18 @@ const {
 const enter = async (ctx) => {
   ctx.wizard.steps.splice(1, ctx.wizard.steps.length);
   ctx.wizard.cursor = 0;
+
+  const { workout } = ctx.scene.state;
+
+  ctx.scene.state = {
+    ...ctx.scene.state,
+    original: _.cloneDeep(workout),
+    name: workout.name,
+    time: workout.params.time,
+    before: workout.params.before || [],
+    after: workout.params.after || [],
+    deleted: [],
+  };
 
   await ctx.reply(
     `Выберите необходимое действие:`,
@@ -35,19 +47,11 @@ const workoutChouseActionHandler = async (ctx) => {
   const text = ctx.message.text.trim();
   switch (text) {
     case buttons.editWorkout: {
-      const { workout } = ctx.scene.state;
-
-      ctx.scene.state = {
-        ...ctx.scene.state,
-        name: workout.name,
-        time: workout.params.time,
-        before: workout.params.before || [],
-        after: workout.params.after || [],
-      };
+      const { original } = ctx.scene.state;
 
       await ctx.replyWithHTML(
         `Старое название тренировки:
-<b><i>${workout.name}</i></b>
+<b><i>${original.name}</i></b>
 
 Введите новое название или нажмите <b>${buttons.next.toUpperCase()}</b> если название менять не нужно`,
         keyboardMarkup.make([[buttons.next], [buttons.cancel]])
@@ -135,7 +139,7 @@ const timeHandler = async (ctx) => {
 
   return ctx.reply(
     `Я вас не понял. Попробуйте воспользоваться клавиатурой.`,
-    keyboardMarkup.answerTypest({
+    keyboardMarkup.answerTypes({
       yes: true,
       no: true,
       cancel: true,
@@ -278,7 +282,8 @@ const deleteAlertHandler = async (ctx) => {
   let text = ctx.message.text.trim();
   switch (text) {
     case buttons.yes: {
-      const { question, isBeforeDone } = ctx.scene.state;
+      const { question, isBeforeDone, deleted } = ctx.scene.state;
+      deleted.push(question._id);
       isBeforeDone
         ? (ctx.scene.state.after = ctx.scene.state.after.filter(
             (q) => q._id !== question._id
@@ -565,40 +570,62 @@ const newQuestionHandler = async (ctx) => {
 const editWorkout = new WizardScene(`editWorkout`, enter);
 
 editWorkout.leave(async (ctx) => {
+  // If SCENE CANCELED :
+  if (ctx.message.text.trim() === buttons.cancel) {
+    ctx.reply(`Редактирование тренировки отменено!`, keyboardMarkup.remove());
+    return ctx.scene.enter(scenes.chouseWorkout);
+  }
+
+  const {
+    original: originalWorkout,
+    workout,
+    name,
+    before,
+    after,
+    time,
+    deleted,
+  } = ctx.scene.state;
+
+  // If WORKOUT DELETED:
   if (ctx.scene.state.deleteWorkout) {
-    const { workout } = ctx.scene.state;
     await Promise.all([
-      Workout.deleteOne({ _id: workout.id }),
+      workout.remove(),
       ctx
         .getSpreadSheet()
         .then((spreadSheet) => spreadSheet.deleteSheet(workout.name)),
     ]);
-
     await ctx.reply(`Тренировка удалена!`, keyboardMarkup.remove());
-    return ctx.scene.enter(`chouseWorkout`); //TODO:
-  }
-  if (ctx.message.text.trim() === buttons.cancel) {
-    return ctx.reply(
-      `Редактирование тренировки отменено!`,
-      keyboardMarkup.remove()
-    );
+    return ctx.scene.enter(scenes.chouseWorkout);
   }
 
-  const { workout, name, before, after, time } = ctx.scene.state;
+  // If SOME QUESTION DELETED:
+  if (deleted.length > 0) {
+    const deletedIds = deleted.map((q) => q.toString());
+    await workout.populate('sessions').execPopulate();
+    workout.sessions.forEach((s) => {
+      s.answers = s.answers.filter((a) => {
+        return !deletedIds.includes(a.question.toString());
+      });
+      s.save();
+    });
+  }
+
   const beforeQuestions = before.map((q) => new Question(q));
   const afterQuestions = after.map((q) => new Question(q));
 
+  workout.params.time = time;
   workout.name = name;
   workout.params.before = beforeQuestions;
   workout.params.after = afterQuestions;
 
-  await workout.save();
+  const spreadSheet = await ctx.getSpreadSheet();
+  await workout.save().then((w) => spreadSheet.updateWorkoutSheet(w));
 
   await ctx.reply(
     `Отлично! Тренировка сохранена и доступна для выбора в общем каталоге:`,
     keyboardMarkup.remove()
   );
-  return ctx.scene.enter(`chouseWorkout`); //TODO:
+  return ctx.scene.enter(scenes.chouseWorkout);
 });
 
 module.exports = editWorkout;

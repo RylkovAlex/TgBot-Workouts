@@ -1,12 +1,12 @@
 const {
   Scenes: { BaseScene },
 } = require('telegraf');
-const chouseWorkout = require('./chouseWorkout');
+const scenes = require('../enums/scenes');
+const commands = require('../enums/commands');
 const keyboardMarkup = require('../keyboards/keyboards');
 const buttons = require('../keyboards/buttons');
-const User = require('../../models/user');
-const SpreadSheet = require('../../utils/spreadSheet');
 
+// TODO: fix regexp to gmail emails
 const emailRegexp = new RegExp(
   /^(([^<>()[\]\.,;:\s@\"]+(\.[^<>()[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$/i
 );
@@ -38,14 +38,11 @@ createUserSheet.on(`text`, async (ctx) => {
         `Отлично! Создаю таблицу для сбора статистики... Скоро пришлю ссылку.`
       );
 
+      user.email = email;
       const spreadSheet = await ctx.getSpreadSheet();
 
-      const spreadSheetId = await spreadSheet.create({
-        title: `My Workouts`,
-        userEmail: user.email,
-      });
+      const spreadSheetId = await spreadSheet.create(user);
 
-      user.email = email;
       user.spreadSheetId = spreadSheetId;
 
       ctx.session.user = await user.save();
@@ -57,30 +54,32 @@ createUserSheet.on(`text`, async (ctx) => {
       return ctx.scene.leave();
     } else {
       return ctx.reply(
-        `Неправильный формат email!\nПопробуйте ещё раз:`,
+        `Неправильный формат email!
+Попробуйте ещё раз:`,
         keyboardMarkup.cancelBtn
       );
     }
   } catch (error) {
-    return ctx.reply(`Ошибка! ${error.message}`, keyboardMarkup.remove());
+    ctx.handleError(error);
   }
 });
 
 createUserSheet.leave(async (ctx) => {
   if (ctx.message.text === buttons.cancel) {
     return ctx.reply(
-      `Команда отменена. Для продолжения используй команду:\n/start`,
+      `Команда отменена. Для продолжения используй команду:
+/start`,
       keyboardMarkup.remove()
     );
   }
   await ctx.reply(
     `Сейчас пришлю тебе дефолтный список тренировок для примера.
 Если что-то не понятно, используй команду:
-/help`,
+${commands.HELP}`,
     keyboardMarkup.remove()
   );
 
-  return ctx.scene.enter(chouseWorkout.id);
+  return ctx.scene.enter(scenes.chouseWorkout);
 });
 
 module.exports = createUserSheet;

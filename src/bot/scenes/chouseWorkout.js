@@ -3,13 +3,12 @@ const {
 } = require('telegraf');
 
 const Workout = require('../../models/workout');
-
+const keyboardMarkup = require('../keyboards/keyboards');
+const buttons = require('../keyboards/buttons');
+const actions = require('../enums/actions');
 const startWorkout = require('./startWorkout');
 const createWorkout = require('./createWorkout');
 const editWorkout = require('./editWorkout');
-const keyboardMarkup = require('../keyboards/keyboards');
-const actions = require('../enums/actions');
-const buttons = require('../keyboards/buttons');
 
 const chouseWorkout = new BaseScene(`chouseWorkout`);
 
@@ -35,50 +34,54 @@ chouseWorkout.handle = (action, ctx) => {
 
     default:
       throw new Error(
-        `Wrong action: ${action} is not supported by ${chouseWorkout.id} Scene`
+        `Wrong action: ${action} is not supported by ${chouseWorkout.id}`
       );
   }
 };
 
 // Action Handlers
 async function enterHandler(ctx) {
-  const { action, silent } = ctx.scene.state;
+  try {
+    const { action, silent } = ctx.scene.state;
 
-  if (action) {
-    return chouseWorkout.handle(action, ctx);
-  }
+    if (action) {
+      return chouseWorkout.handle(action, ctx);
+    }
 
-  const reply_markup = await keyboardMarkup
-    .inline_workouts(ctx, {
-      sceneId: chouseWorkout.id,
-      action: actions.WORKOUT_CLICK_TO_START,
-      addBtns: { edit: true, create: true },
-    })
-    .then((markup) => markup?.reply_markup);
-
-  if (!reply_markup) {
-    const reply_markup = keyboardMarkup.makeInline(
-      [[{ name: buttons.createWorkout, action: actions.CREATE_WORKOUT }]],
-      {
-        ctx,
+    const reply_markup = await keyboardMarkup
+      .inline_workouts(ctx, {
         sceneId: chouseWorkout.id,
-      }
-    ).reply_markup;
+        action: actions.WORKOUT_CLICK_TO_START,
+        addBtns: { edit: true, create: true },
+      })
+      .then((markup) => markup?.reply_markup);
+
+    if (!reply_markup) {
+      const { reply_markup } = keyboardMarkup.makeInline(
+        [[{ name: buttons.createWorkout, action: actions.CREATE_WORKOUT }]],
+        {
+          ctx,
+          sceneId: chouseWorkout.id,
+        }
+      );
+
+      return silent
+        ? ctx.editMessageText(`У вас нет доступных тренировок. Создайте их:`, {
+            reply_markup,
+          })
+        : ctx.reply(`У вас нет доступных тренировок. Создайте их:`, {
+            reply_markup,
+          });
+    }
 
     return silent
-      ? ctx.editMessageText(`У вас нет доступных тренировок. Создайте их:`, {
+      ? ctx.editMessageText(`Доступные тренировки:`, {
           reply_markup,
         })
-      : ctx.reply(`У вас нет доступных тренировок. Создайте их:`, {
-          reply_markup,
-        });
+      : ctx.reply(`Доступные тренировки:`, { reply_markup });
+  } catch (error) {
+    ctx.handleError(error);
   }
-
-  return silent
-    ? ctx.editMessageText(`Доступные тренировки:`, {
-        reply_markup,
-      })
-    : ctx.reply(`Доступные тренировки:`, { reply_markup });
 }
 
 async function backHandler(ctx) {
@@ -87,25 +90,37 @@ async function backHandler(ctx) {
 }
 
 async function editWorkoutClickHandler(ctx) {
-  const reply_markup = await keyboardMarkup
-    .inline_workouts(ctx, {
+  try {
+    const { reply_markup } = await keyboardMarkup.inline_workouts(ctx, {
       sceneId: chouseWorkout.id,
       action: actions.WORKOUT_CLICK_TO_EDIT,
       addBtns: { back: true },
-    })
-    .then((markup) => markup.reply_markup);
-  ctx.answerCbQuery();
+    });
+    ctx.answerCbQuery();
 
-  // TODO: if no workouts => only one button: create
-  if (reply_markup.length === 1) {
-    return ctx.editMessageText(`У вас нет доступных тренировок. Создайте их:`, {
+    if (!reply_markup) {
+      const { reply_markup } = keyboardMarkup.makeInline(
+        [[{ name: buttons.createWorkout, action: actions.CREATE_WORKOUT }]],
+        {
+          ctx,
+          sceneId: chouseWorkout.id,
+        }
+      );
+
+      return ctx.editMessageText(
+        `У вас нет доступных тренировок. Создайте их:`,
+        {
+          reply_markup,
+        }
+      );
+    }
+
+    return ctx.editMessageText(`Выберите тренировку для редактирования:`, {
       reply_markup,
     });
+  } catch (error) {
+    ctx.handleError(error);
   }
-
-  return ctx.editMessageText(`Выберите тренировку для редактирования:`, {
-    reply_markup,
-  });
 }
 
 async function createWorkoutClickHandler(ctx) {
@@ -114,43 +129,51 @@ async function createWorkoutClickHandler(ctx) {
 }
 
 async function workoutClickToStartHandler(ctx) {
-  const reply_markup = keyboardMarkup.inline_beforeStartWorkout(
+  const { reply_markup } = keyboardMarkup.inline_beforeStartWorkout(
     ctx,
     chouseWorkout.id
-  ).reply_markup;
+  );
   return ctx.editMessageText(`Начать тренировку?`, {
     reply_markup,
   });
 }
 
 async function workoutClickToEditHandler(ctx) {
-  const { payload: workoutId } = ctx.getCbData();
-  ctx.answerCbQuery();
-
-  const workout = await Workout.findById(workoutId);
-
-  if (!workout) {
+  try {
+    const { payload: workoutId } = ctx.getCbData();
     ctx.answerCbQuery();
-    //TODO: some reaction if no workout?
-    return editWorkoutClickHandler(ctx);
-  }
 
-  await ctx.deleteMessage();
-  return ctx.scene.enter(editWorkout.id, { workout });
+    const workout = await Workout.findById(workoutId);
+
+    if (!workout) {
+      ctx.answerCbQuery();
+      await ctx.reply(`Данная тренировка больше не доступна!`);
+      return editWorkoutClickHandler(ctx);
+    }
+
+    await ctx.deleteMessage();
+    return ctx.scene.enter(editWorkout.id, { workout });
+  } catch (error) {
+    ctx.handleError(error);
+  }
 }
 
 async function startHandler(ctx) {
-  const { payload: workoutId } = ctx.getCbData();
-  const workout = await Workout.findById(workoutId);
+  try {
+    const { payload: workoutId } = ctx.getCbData();
+    const workout = await Workout.findById(workoutId);
 
-  if (!workout) {
-    ctx.answerCbQuery();
-    await ctx.reply(`Данная тренировка больше не доступна!`);
-    return ctx.scene.enter(chouseWorkout.id, { silent: true });
+    if (!workout) {
+      ctx.answerCbQuery();
+      await ctx.reply(`Данная тренировка больше не доступна!`);
+      return ctx.scene.enter(chouseWorkout.id, { silent: true });
+    }
+
+    await ctx.deleteMessage();
+    return ctx.scene.enter(startWorkout.id, { workout });
+  } catch (error) {
+    ctx.handleError(error);
   }
-
-  await ctx.deleteMessage();
-  return ctx.scene.enter(startWorkout.id, { workout });
 }
 
 module.exports = chouseWorkout;
