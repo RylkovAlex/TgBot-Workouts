@@ -35,7 +35,8 @@ createUserSheet.on(`text`, async (ctx) => {
 
     if (email.match(emailRegexp) && email.includes(`@gmail.com`)) {
       await ctx.reply(
-        `Отлично! Создаю таблицу для сбора статистики... Скоро пришлю ссылку.`
+        `Отлично! Создаю таблицу для сбора статистики... Скоро пришлю ссылку.`,
+        keyboardMarkup.remove()
       );
 
       user.email = email;
@@ -46,11 +47,9 @@ createUserSheet.on(`text`, async (ctx) => {
       user.spreadSheetId = spreadSheetId;
 
       ctx.session.user = await user.save();
-      await ctx.replyWithHTML(`Таблица готова:
-<a href="https://docs.google.com/spreadsheets/d/${spreadSheetId}">ссылка</a>
-Проверь пожалуйста свою почту и прими запрос на передачу прав владения таблицей.
+      await ctx.replyWithHTML(`Таблица готова: <a href="https://docs.google.com/spreadsheets/d/${spreadSheetId}">ссылка</a>
 
-Дальше она будет доступна по команде /table`);
+Далее она будет доступна по команде /table`);
       return ctx.scene.leave();
     } else {
       return ctx.reply(

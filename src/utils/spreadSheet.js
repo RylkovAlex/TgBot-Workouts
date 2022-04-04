@@ -56,37 +56,33 @@ class SpreadSheet {
       await this.spreadSheet
         .useServiceAccountAuth(credentials)
         .catch((error) => {
-          throw new Error(
-            `Ошибка авторизации в GoogleSpreadsheet: ${error.message}`
-          );
+          error.message = `Авторизация в GoogleSpreadsheet: ${error.message}`;
+          throw error;
         });
       await this.spreadSheet
         .createNewSpreadsheetDocument({
           title: `My Workouts`,
         })
         .catch((error) => {
-          throw new Error(`Ошибка создания новой таблицы: ${error.message}`);
+          error.message = `Новая таблица: ${error.message}`;
+          throw error;
         });
-      const { spreadsheetId } = this.spreadSheet;
 
-      const permission = {
-        type: 'user',
-        role: 'owner',
-        emailAddress: user.email,
-        pendingOwner: true,
-      };
+      const { spreadsheetId } = this.spreadSheet;
 
       await this.drive.permissions
         .create({
-          resource: permission,
           fileId: spreadsheetId,
-          fields: 'id',
-          transferOwnership: true,
+          // transferOwnership: true,
+          resource: {
+            role: 'reader',
+            type: 'user',
+            emailAddress: user.email,
+          },
         })
         .catch((error) => {
-          throw new Error(
-            `Ошибка передачи прав владения документом: ${error.message}`
-          );
+          error.message = `Передача прав владения документом: ${error.message}`;
+          throw error;
         });
 
       await user.populate('workouts').execPopulate();
@@ -101,7 +97,7 @@ class SpreadSheet {
 
       return spreadsheetId;
     } catch (error) {
-      console.log(error);
+      error.message = `Создание таблицы: ${error.message}`;
       throw error;
     }
   }
@@ -117,108 +113,135 @@ class SpreadSheet {
   }
 
   async addSheet(props) {
-    const newSheet = await this.spreadSheet.addSheet(props);
-    await this.spreadSheet._makeBatchUpdateRequest([
-      {
-        addProtectedRange: {
-          protectedRange: {
-            range: {
-              sheetId: newSheet.sheetId,
+    try {
+      const newSheet = await this.spreadSheet.addSheet(props);
+      await this.spreadSheet._makeBatchUpdateRequest([
+        {
+          addProtectedRange: {
+            protectedRange: {
+              range: {
+                sheetId: newSheet.sheetId,
+              },
+              description:
+                'Внимание! Редактируя данные на этом листе, Вы рискуете нарушить работоспособность бота!',
+              warningOnly: true,
             },
-            description:
-              'Внимание! Редактируя данные на этом листе, Вы рискуете нарушить работоспособность бота!',
-            warningOnly: true,
           },
         },
-      },
-    ]);
-    return newSheet;
+      ]);
+      return newSheet;
+    } catch (error) {
+      error.message = `Создание нового листа в таблице: ${error.message}`;
+      throw error;
+    }
   }
 
   async autoResize(sheetId, startIndex = 0, endIndex) {
-    await this.spreadSheet._makeBatchUpdateRequest([
-      {
-        autoResizeDimensions: {
-          dimensions: {
-            sheetId,
-            dimension: 'COLUMNS',
-            startIndex,
-            endIndex,
+    await this.spreadSheet
+      ._makeBatchUpdateRequest([
+        {
+          autoResizeDimensions: {
+            dimensions: {
+              sheetId,
+              dimension: 'COLUMNS',
+              startIndex,
+              endIndex,
+            },
           },
         },
-      },
-    ]);
+      ])
+      .catch((error) => {
+        error.message = `Ресайз таблицы: ${error.message}`;
+        throw error;
+      });
   }
 
   async deleteColumn() {
-    await this.spreadSheet._makeBatchUpdateRequest([
-      {
-        deleteDimension: {
-          range: {
-            sheetId: this.spreadSheet.spreadsheetId,
-            dimension: 'COLUMNS',
-            startIndex: 1,
-            endIndex: 1,
+    await this.spreadSheet
+      ._makeBatchUpdateRequest([
+        {
+          deleteDimension: {
+            range: {
+              sheetId: this.spreadSheet.spreadsheetId,
+              dimension: 'COLUMNS',
+              startIndex: 1,
+              endIndex: 1,
+            },
           },
         },
-      },
-    ]);
+      ])
+      .catch((error) => {
+        error.message = `Удаление колонки в таблице: ${error.message}`;
+        throw error;
+      });
   }
 
   async addSession(session) {
-    await session.populate('workout').execPopulate();
-    const { time } = session.workout.params;
-    const paramNames = session.workout.getParamNames();
-    const data = await session.getData();
+    try {
+      await session.populate('workout').execPopulate();
+      const { time } = session.workout.params;
+      const paramNames = session.workout.getParamNames();
+      const data = await session.getData();
 
-    const rowValues = [getDate(data.createdAt)];
-    if (time) {
-      rowValues.push(data.time);
+      const rowValues = [getDate(data.createdAt)];
+      if (time) {
+        rowValues.push(data.time);
+      }
+      paramNames.forEach((paramName) => rowValues.push(data[paramName]));
+
+      const workoutSheet = await this.getSheet(session.workout.name);
+      await workoutSheet.addRow(rowValues);
+      this.autoResize(workoutSheet.sheetId, 0, rowValues.length + 1);
+    } catch (error) {
+      error.message = `Вставка данных в таблицу: ${error.message}`;
+      throw error;
     }
-    paramNames.forEach((paramName) => rowValues.push(data[paramName]));
-
-    const workoutSheet = await this.getSheet(session.workout.name);
-    await workoutSheet.addRow(rowValues);
-    this.autoResize(workoutSheet.sheetId, 0, rowValues.length + 1);
   }
 
   async updateWorkoutSheet(workout) {
-    const workoutSheet =
-      (await this.getSheet(workout.name).then(async (sheet) => {
-        await sheet.clear();
-        return sheet;
-      })) ||
-      (await this.addSheet({
-        title: workout.name,
-      }));
-    const headerValues = [DATE_HEADER];
-    const isTime = workout.params.time;
-    if (isTime) {
-      headerValues.push(TIME_HEADER);
-    }
-    const paramNames = workout.getParamNames();
-    headerValues.push(...paramNames);
-    await workoutSheet.setHeaderRow(headerValues);
-
-    if (!workout.populated('sessions')) {
-      await workout.populate('sessions').execPopulate();
-    }
-    const rows = await workout.sessions.reduce(async (result, session) => {
-      const rowValues = [];
-      const data = await session.getData();
-      rowValues.push(getDate(data.createdAt));
+    try {
+      const workoutSheet =
+        (await this.getSheet(workout.name).then(async (sheet) => {
+          if (sheet) {
+            await sheet.clear();
+          }
+          return sheet;
+        })) ||
+        (await this.addSheet({
+          title: workout.name,
+        }));
+      const headerValues = [DATE_HEADER];
+      const isTime = workout.params.time;
       if (isTime) {
-        rowValues.push(data.time);
+        headerValues.push(TIME_HEADER);
       }
-      paramNames.forEach((name) => rowValues.push(data[name]));
-      return await result.then((r) => {
-        r.push(rowValues);
-        return r;
-      });
-    }, Promise.resolve([]));
+      const paramNames = workout.getParamNames();
+      headerValues.push(...paramNames);
+      await workoutSheet.setHeaderRow(headerValues);
 
-    await workoutSheet.addRows(rows);
-    this.autoResize(workoutSheet.sheetId, 0, headerValues.length + 1);
+      if (!workout.populated('sessions')) {
+        await workout.populate('sessions').execPopulate();
+      }
+      const rows = await workout.sessions.reduce(async (result, session) => {
+        const rowValues = [];
+        const data = await session.getData();
+        rowValues.push(getDate(data.createdAt));
+        if (isTime) {
+          rowValues.push(data.time);
+        }
+        paramNames.forEach((name) => rowValues.push(data[name]));
+        return await result.then((r) => {
+          r.push(rowValues);
+          return r;
+        });
+      }, Promise.resolve([]));
+
+      await workoutSheet.addRows(rows);
+      this.autoResize(workoutSheet.sheetId, 0, headerValues.length + 1);
+    } catch (error) {
+      error.message = `Обновление листа: ${error.message}`;
+      throw error;
+    }
   }
 }
 

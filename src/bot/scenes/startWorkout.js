@@ -48,15 +48,18 @@ startWorkout.leave(async (ctx) => {
       );
       return ctx.scene.enter(scenes.chouseWorkout);
     }
-    await ctx.reply(`Сохраняю результат тренировки...`);
+    await ctx.reply(
+      `Сохраняю результат тренировки...`,
+      keyboardMarkup.remove()
+    );
     const { workout, result } = ctx.scene.state;
     const { answers, time } = result;
     const session = {
       answers,
       workout: workout._id,
     };
-    if (time) {
-      session.time = result.time;
+    if (workout.params.time) {
+      session.time = time;
     }
 
     const spreadSheet = await ctx.getSpreadSheet();
@@ -64,10 +67,7 @@ startWorkout.leave(async (ctx) => {
       .save()
       .then((session) => spreadSheet.addSession(session));
 
-    await ctx.reply(
-      `Отлично! Тренировочная сессия сохранена.`,
-      keyboardMarkup.remove()
-    );
+    await ctx.reply(`Отлично! Тренировочная сессия сохранена.`);
     return ctx.scene.enter(scenes.chouseWorkout);
   } catch (error) {
     ctx.handleError(error);
@@ -268,7 +268,7 @@ function getTimeHandlers(time) {
       const { startTime } = ctx.scene.state;
       const finishTime = Date.now();
       const time = Math.floor((finishTime - startTime) / 60000);
-
+      console.log(time);
       ctx.scene.state.result.time = time;
       ctx.wizard.next();
       return ctx.wizard.steps[ctx.wizard.cursor](ctx);

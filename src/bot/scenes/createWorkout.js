@@ -343,7 +343,7 @@ createWorkout.leave(async (ctx) => {
       );
       return ctx.scene.enter(scenes.chouseWorkout);
     }
-    await ctx.reply(`Сохраняю конфигурацию...`);
+    await ctx.reply(`Сохраняю конфигурацию...`, keyboardMarkup.remove());
     const { workoutName, before, after, time } = ctx.scene.state;
     const user = await ctx.getUser();
     const workout = await new Workout({
@@ -361,8 +361,7 @@ createWorkout.leave(async (ctx) => {
       .then((s) => s.updateWorkoutSheet(workout));
 
     await ctx.reply(
-      `Отлично! Тренировка сохранена и доступна для выбора в общем каталоге:`,
-      keyboardMarkup.remove()
+      `Отлично! Тренировка сохранена и доступна для выбора в общем каталоге:`
     );
     return ctx.scene.enter(scenes.chouseWorkout);
   } catch (error) {

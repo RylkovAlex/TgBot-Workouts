@@ -1,12 +1,13 @@
 const createUserSheet = require('../scenes/createUserSheet');
 const keyboardMarkup = require('../keyboards/keyboards');
 const commands = require('../enums/commands');
+const scenes = require('../enums/scenes');
 
 module.exports = async (ctx) => {
   try {
     const user = await ctx.getUser();
     if (!user.spreadSheetId) {
-      return ctx.scene.enter(createUserSheet.id);
+      return ctx.scene.enter(scenes.createUserSheet);
     }
     await ctx.reply(
       `Таблица доступна по ссылке ниже.

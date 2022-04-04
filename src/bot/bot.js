@@ -101,6 +101,7 @@ class CustomContext extends Context {
   }
 
   async handleError(error, message) {
+    console.log(error);
     await this.reply(`Error:`, keyboardMarkup.remove());
     await this.reply(message || error.message, keyboardMarkup.link_errorForm);
     const user = await this.getUser();
@@ -114,6 +115,14 @@ bot.use(session(), stage.middleware(), checkChat);
 
 bot.start(handleStart);
 bot.command(commands.TABLE, handleTable);
+bot.command(commands.MY_WORKOUTS, (ctx) =>
+  ctx.scene.enter(scenes.chouseWorkout.id)
+);
+bot.command(commands.HELP, (ctx) =>
+  ctx.reply(
+    `Инструкция ещё не доступна! (бот проходит альфа-тестирование. За помощью обратитесь к разработчику)`
+  )
+);
 bot.command(commands.NEW_TABLE, (ctx) =>
   ctx.scene.enter(scenes.createUserSheet.id, { forced: true })
 );

@@ -6,9 +6,7 @@ const Workout = require('../../models/workout');
 const keyboardMarkup = require('../keyboards/keyboards');
 const buttons = require('../keyboards/buttons');
 const actions = require('../enums/actions');
-const startWorkout = require('./startWorkout');
-const createWorkout = require('./createWorkout');
-const editWorkout = require('./editWorkout');
+const scenes = require('../enums/scenes');
 
 const chouseWorkout = new BaseScene(`chouseWorkout`);
 
@@ -125,7 +123,7 @@ async function editWorkoutClickHandler(ctx) {
 
 async function createWorkoutClickHandler(ctx) {
   ctx.answerCbQuery();
-  return ctx.scene.enter(createWorkout.id);
+  return ctx.scene.enter(scenes.createWorkout);
 }
 
 async function workoutClickToStartHandler(ctx) {
@@ -152,7 +150,7 @@ async function workoutClickToEditHandler(ctx) {
     }
 
     await ctx.deleteMessage();
-    return ctx.scene.enter(editWorkout.id, { workout });
+    return ctx.scene.enter(scenes.editWorkout, { workout });
   } catch (error) {
     ctx.handleError(error);
   }
@@ -170,7 +168,7 @@ async function startHandler(ctx) {
     }
 
     await ctx.deleteMessage();
-    return ctx.scene.enter(startWorkout.id, { workout });
+    return ctx.scene.enter(scenes.startWorkout, { workout });
   } catch (error) {
     ctx.handleError(error);
   }

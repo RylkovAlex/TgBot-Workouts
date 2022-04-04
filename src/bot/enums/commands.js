@@ -3,5 +3,5 @@ module.exports = {
   HELP: `/help`,
   TABLE: `/table`,
   NEW_TABLE: `/newTable`,
-  MY_WORKOUTS: `/myWorkouts`,
+  MY_WORKOUTS: `/myworkouts`,
 };

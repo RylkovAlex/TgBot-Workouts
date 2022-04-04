@@ -1,5 +1,5 @@
 {
-  "name": "tng_stats_bot",
+  "name": "my_workouts",
   "version": "1.0.0",
   "description": "Telegram bot for collect user's workouts statistic",
   "main": "index.js",
@@ -18,8 +18,7 @@
     "mongodb": "3.7.2",
     "mongoose": "5.13.11",
     "mongose": "0.0.2-security",
-    "telegraf": "^4.7.0",
-    "lodash": "^4.17.21"
+    "telegraf": "^4.7.0"
   },
   "devDependencies": {
     "env-cmd": "^10.1.0",

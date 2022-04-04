@@ -7,7 +7,7 @@ module.exports = async (ctx) => {
     `Привет, ${user.tgName}!\n\nЯ помогу тебе вести дневник тренировок и собирать всю статистику.`
   );
 
-  if (!user.email) {
+  if (!user.email || !user.spreadSheetId) {
     return ctx.scene.enter(scenes.createUserSheet);
   }
 

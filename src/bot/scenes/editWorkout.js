@@ -23,7 +23,6 @@ const enter = async (ctx) => {
 
   ctx.scene.state = {
     ...ctx.scene.state,
-    original: _.cloneDeep(workout),
     name: workout.name,
     time: workout.params.time,
     before: workout.params.before || [],
@@ -47,11 +46,11 @@ const workoutChouseActionHandler = async (ctx) => {
   const text = ctx.message.text.trim();
   switch (text) {
     case buttons.editWorkout: {
-      const { original } = ctx.scene.state;
+      const { workout } = ctx.scene.state;
 
       await ctx.replyWithHTML(
         `Старое название тренировки:
-<b><i>${original.name}</i></b>
+<b><i>${workout.name}</i></b>
 
 Введите новое название или нажмите <b>${buttons.next.toUpperCase()}</b> если название менять не нужно`,
         keyboardMarkup.make([[buttons.next], [buttons.cancel]])
@@ -570,14 +569,14 @@ const newQuestionHandler = async (ctx) => {
 const editWorkout = new WizardScene(`editWorkout`, enter);
 
 editWorkout.leave(async (ctx) => {
+  try {
   // If SCENE CANCELED :
   if (ctx.message.text.trim() === buttons.cancel) {
     ctx.reply(`Редактирование тренировки отменено!`, keyboardMarkup.remove());
     return ctx.scene.enter(scenes.chouseWorkout);
   }
-
+  await ctx.reply(`Сохраняю результат...`, keyboardMarkup.remove())
   const {
-    original: originalWorkout,
     workout,
     name,
     before,
@@ -594,7 +593,7 @@ editWorkout.leave(async (ctx) => {
         .getSpreadSheet()
         .then((spreadSheet) => spreadSheet.deleteSheet(workout.name)),
     ]);
-    await ctx.reply(`Тренировка удалена!`, keyboardMarkup.remove());
+    await ctx.reply(`Тренировка удалена!`);
     return ctx.scene.enter(scenes.chouseWorkout);
   }
 
@@ -626,6 +625,9 @@ editWorkout.leave(async (ctx) => {
     keyboardMarkup.remove()
   );
   return ctx.scene.enter(scenes.chouseWorkout);
+  } catch (error) {
+    ctx.handleError(error)
+  }
 });
 
 module.exports = editWorkout;
